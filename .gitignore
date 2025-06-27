@@ -35,7 +35,4 @@ codegen/
 # buildtool cache folder
 .buildtool/
 
-<<<<<<< HEAD
-(pending) Videos/*
-=======
->>>>>>> 97c61d3cddda0308199e8410bc74cebe8dc408ec
+/MATLAB/eeg_data
