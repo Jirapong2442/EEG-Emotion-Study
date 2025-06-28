@@ -78,3 +78,12 @@ end
 % Multiline code can be separated by '\n' or by using [ ... ] to concatenate lines.
 
 
+
+
+
+% DEV
+% cleaner cmd window
+dev.temp_script_name = "convenient_buttons";
+if ~isfield(dev, 'clean')|| ~dev.clean
+    fprintf('\n## %s.m loaded\n', dev.temp_script_name);
+end

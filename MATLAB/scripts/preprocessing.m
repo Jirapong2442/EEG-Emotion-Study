@@ -1,9 +1,19 @@
-config;
+config; % load this file once directly, then no need in future
 vars;
 convenient_buttons;
-savepoint = struct();
+savepoint = struct(); % reset savepoints
 
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab;
+
+% === CHANGE HERE =========================================================
+subject_ID = 'test2';
+% =========================================================================
+
+file_name = 'markers_renamed.set';
+file_dir = fullfile(dir.eeg_data, subject_ID);
+
+EEG = pop_loadset('filename',file_name,'filepath',file_dir);
+[ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0 );
 
 %% remove unused time data - time
 
@@ -28,53 +38,88 @@ rej = [0 start_time_ms; end_time_ms EEG.pnts];
 EEG = eeg_eegrej( EEG, rej);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','time','gui','off'); 
 
-add_savepoint('time');
 
 %% remove unused channels - channels
-
-used_channels = { ...
-'FP1', 'FP2', ...
-'AF7', 'AF3', 'AFZ', 'AF4', 'AF8', ...
-'F7', 'F5', 'F3', 'F1', 'FZ', 'F2', 'F4', 'F6', 'F8', ...
-'FT9', 'FT7', 'FC5', 'FC3', 'FC1', 'FCZ', 'FC2', 'FC4', 'FC6', 'FT8', 'FT10', ...
-'T7', 'C5', 'C3', 'C1', 'CZ', 'C2', 'C4', 'C6', 'T8', ...
-'TP7', 'CP5', 'CP3', 'CP1', 'CPZ', 'CP2', 'CP4', 'CP6', 'TP8', ...
-'P9', 'P7', 'P5', 'P3', 'P1', 'PZ', 'P2', 'P4', 'P6', 'P8', 'P10', ...
-'PO7', 'PO3', 'POZ', 'PO4', 'PO8', ...
-'O1', 'OZ', 'O2' ...
-'CBZ','VEO','HEO','EMG1','EMG2','EMG3','EMG4','EMG5','EMG6' ...
-};
-
-
-%{'CBZ','VEO','HEO','EMG1','EMG2','EMG3','EMG4','EMG5','EMG6','TRIGGER'}
 
 EEG = pop_select( EEG, 'channel',used_channels);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','channels','gui','off');
 
-add_savepoint('channels');
 
 %% resampling - resampled
 
 EEG = pop_resample( EEG, 250);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','resampled','gui','off'); 
 
-add_savepoint('resampled');
 
 %% band filtering - filtered
 
-EEG = pop_eegfiltnew(EEG, 'locutoff',48,'hicutoff',52,'revfilt',1,'plotfreqz',1);
-EEG = pop_eegfiltnew(EEG, 'locutoff',0.5,'plotfreqz',1);
+EEG = pop_eegfiltnew(EEG, 'locutoff',48,'hicutoff',52,'revfilt',1);
+EEG = pop_eegfiltnew(EEG, 'locutoff',0.5);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','filtered','gui','off'); 
 
-add_savepoint('filtered')
 
-%% manually reject segments - reject_segments
+%% reject bad channels - bad chans
 
-open temp_reject_segments.m
+try
+    % found and get bad channels
+    temp = ['bad_channels_' subject_ID];
+    bad_channels = pp.(temp);
+    % reject bad channels
+    EEG = pop_select( EEG, 'rmchannel',bad_channels);
+    [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'gui','off');
+
+catch
+    % bad channels were not defined in the past
+    pop_eegplot( EEG, 1, 1, 1);
+    open vars.m
+    fprintf("\n##### Re-run this right after\n")
+end
+
+
+%% manually reject segments - reject segments
+
+try
+    % found and get bad channels
+    temp = ['reject_segments_' subject_ID];
+    reject_segments = pp.(temp);
+    % reject bad channels
+    EEG = eeg_eegrej( EEG, reject_segments);
+    [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'gui','off');
+
+catch
+    % bad channels were not defined in the past
+    pop_eegplot( EEG, 1, 1, 1);
+    open vars.m
+    fprintf("\n##### no need re-running. type 'eegh' and put rejected segments in var\n")
+end
+
 
 %% ICA
 
+EEG = pop_runica(EEG, 'icatype', 'runica', 'extended',1,'rndreset','yes','interrupt','on');
+[ALLEEG, EEG, CURRENTSET] = eeg_store(ALLEEG, EEG, CURRENTSET);
+eeglab redraw
 
-%% channel interpolation - chan_interpolated
+fprintf("\n##### Then, try plotting ADJUST, then normal one")
+fprintf("\n##### Manually proceed by rejecting selected ICs")
 
+%% channel interpolation - chan interpolated
 
+% get bad channels indices 
+temp = ['bad_channels_' subject_ID];
+bad_channels = pp.(temp);
+bad_channels_idx = find(ismember(used_channels, bad_channels));
+
+% load channel location reference set for EEGLAB
+% it requires a direct dataset for reference
+current_set_idx = CURRENTSET;
+EEG = pop_loadset('filename','chan_loc_only_ref.set','filepath',dir.eeg_data);
+[ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0 );
+ref_set_idx = CURRENTSET;
+
+% jump back to current set after loading the reference set
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, ref_set_idx,'retrieve',current_set_idx,'study',0);
+
+% interpolate chans
+EEG = pop_interp(EEG, ALLEEG(ref_set_idx).chanlocs(bad_channels_idx), 'spherical');
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 2,'gui','off'); 
