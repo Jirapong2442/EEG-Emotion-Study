@@ -26,14 +26,12 @@ for i = 1:length(all_event_types)
     end
 end
 
-marker11_idx = find(strcmp(all_event_types, '11'));
-marker12_idx = find(strcmp(all_event_types, '12'));
+marker21start_idx = find(strcmp(all_event_types, '21'));
+marker22end_idx = find(strcmp(all_event_types, '22'));
 
-start_time_ms = EEG.event(marker11_idx).latency - 1;
-end_time_ms = EEG.event(marker12_idx).latency + 2 * 60 * EEG.srate;
-% TODO: after finishing the myDurSeconds, change this so it directly
-% detects the ending of the baseline2
-
+start_time_ms = EEG.event(marker21start_idx).latency - 1; % don't completely remove marker 21
+end_time_ms = EEG.event(marker22end_idx).latency;
+% end_time_ms = EEG.event(marker12_idx).latency + 2 * 60 * EEG.srate;
 
 rej = [0 start_time_ms; end_time_ms EEG.pnts];
 
@@ -117,7 +115,7 @@ bad_channels_idx = find(ismember(used_channels, bad_channels));
 % load channel location reference set for EEGLAB
 % it requires a direct dataset for reference
 current_set_idx = CURRENTSET;
-EEG = pop_loadset('filename','chan_loc_only_ref.set','filepath',dir.eeg_data);
+EEG = pop_loadset('filename','chan_loc_only_ref.set','filepath',dir.scripts);
 [ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0 );
 ref_set_idx = CURRENTSET;
 

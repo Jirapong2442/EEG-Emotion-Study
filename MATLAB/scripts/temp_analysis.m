@@ -21,9 +21,9 @@ marker6_idx = find(strcmp(all_event_types, '6'));
 start_time_ms = EEG.event(marker1_idx).latency;
 end_time_ms = EEG.event(marker6_idx).latency; % in the real one it has to trim at the end of this instead.
 
-rej = [0 start_time_ms; end_time_ms EEG.pnts];
+rej_segments = [0 start_time_ms; end_time_ms EEG.pnts];
 
-EEG = eeg_eegrej( EEG, rej);
+EEG = eeg_eegrej( EEG, rej_segments);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','time','gui','off')
 
 %% ONLY BASELINE 1
@@ -32,9 +32,9 @@ marker11_idx = find(strcmp(all_event_types, '11'));
 % start_time_ms = 0;
 end_time_ms = EEG.event(marker6_idx).latency + 2*60*EEG.srate; % in the real one it has to trim at the end of this instead.
 
-rej = [end_time_ms EEG.pnts];
+rej_segments = [end_time_ms EEG.pnts];
 
-EEG = eeg_eegrej( EEG, rej);
+EEG = eeg_eegrej( EEG, rej_segments);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','time','gui','off')
 
 %% ONLY BASELINE 2
@@ -43,9 +43,9 @@ marker12_idx = find(strcmp(all_event_types, '12'));
 start_time_ms = EEG.event(marker12_idx).latency;
 % end_time_ms = EEG.pnts; 
 
-rej = [0 start_time_ms];
+rej_segments = [0 start_time_ms];
 
-EEG = eeg_eegrej( EEG, rej);
+EEG = eeg_eegrej( EEG, rej_segments);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','time','gui','off')
 
 %% relative band power scalp maps
