@@ -1,3 +1,3 @@
-if mode == "replace"
-    disp('hi')
+for i = 1:numel(EEG.event)
+    EEG.event(i).myDurSeconds = [];
 end

@@ -1,7 +1,6 @@
 config; % load this file once directly, then no need in future
 vars;
 convenient_buttons;
-savepoint = struct(); % reset savepoints
 
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab;
 
@@ -32,6 +31,9 @@ marker12_idx = find(strcmp(all_event_types, '12'));
 
 start_time_ms = EEG.event(marker11_idx).latency - 1;
 end_time_ms = EEG.event(marker12_idx).latency + 2 * 60 * EEG.srate;
+% TODO: after finishing the myDurSeconds, change this so it directly
+% detects the ending of the baseline2
+
 
 rej = [0 start_time_ms; end_time_ms EEG.pnts];
 
@@ -62,6 +64,7 @@ EEG = pop_eegfiltnew(EEG, 'locutoff',0.5);
 
 try
     % found and get bad channels
+    vars;
     temp = ['bad_channels_' subject_ID];
     bad_channels = pp.(temp);
     % reject bad channels
@@ -80,6 +83,7 @@ end
 
 try
     % found and get bad channels
+    vars;
     temp = ['reject_segments_' subject_ID];
     reject_segments = pp.(temp);
     % reject bad channels
