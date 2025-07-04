@@ -64,21 +64,20 @@ for i = 1:length(all_event_types)
     end
 end
 
+[EEG.event.replaced] = deal(0);
+
 for i = 1:length(missing_markers)
     missing_latency = missing_markers(i).latency;
     missing_type = missing_markers(i).type;
     
     for j = 1:length(EEG.event)
-        % Check if current marker is a 'boundary'
         if ischar(EEG.event(j).type) && strcmp(EEG.event(j).type, 'boundary')
-            % Define the range
             range_start = EEG.event(j).original_latency;
             range_end = EEG.event(j).original_latency + EEG.event(j).duration;
             
-            % Check if missing marker's latency falls within the range
             if missing_latency >= range_start && missing_latency <= range_end
-                % Replace the type
                 EEG.event(j).type = num2str(missing_type);
+                EEG.event(j).replaced = 1; % Mark as replaced
             end
         end
     end
@@ -87,24 +86,23 @@ end
 
 
 
-
-%% Then, assuming only 'boundary' types contain the missing markers
-all_event_types = {EEG.event.type};
-
-% Handle cases where type is numeric or string
-% Convert numeric types to strings for consistent comparison
-for i = 1:length(all_event_types)
-    if isnumeric(all_event_types{i})
-        all_event_types{i} = num2str(all_event_types{i});
-    end
-end
-
-marker_boundary_idx = find(strcmp(all_event_types, 'boundary'));
-boundary_events = [];
-for i = 1:length(marker_boundary_idx)
-    idx = marker_boundary_idx(i);
-    boundary_events(i,1) = idx;
-    boundary_events(i,2) = EEG.event(idx).original_latency;
-    boundary_events(i,3) = EEG.event(idx).original_latency + EEG.event(idx).original_latency;
-    disp(i);
-end
+% %% Then, assuming only 'boundary' types contain the missing markers
+% all_event_types = {EEG.event.type};
+% 
+% % Handle cases where type is numeric or string
+% % Convert numeric types to strings for consistent comparison
+% for i = 1:length(all_event_types)
+%     if isnumeric(all_event_types{i})
+%         all_event_types{i} = num2str(all_event_types{i});
+%     end
+% end
+% 
+% marker_boundary_idx = find(strcmp(all_event_types, 'boundary'));
+% boundary_events = [];
+% for i = 1:length(marker_boundary_idx)
+%     idx = marker_boundary_idx(i);
+%     boundary_events(i,1) = idx;
+%     boundary_events(i,2) = EEG.event(idx).original_latency;
+%     boundary_events(i,3) = EEG.event(idx).original_latency + EEG.event(idx).original_latency;
+%     disp(i);
+% end

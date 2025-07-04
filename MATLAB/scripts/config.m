@@ -25,6 +25,13 @@ used_channels = { ...
 %{'CBZ','VEO','HEO','EMG1','EMG2','EMG3','EMG4','EMG5','EMG6','TRIGGER'}
 
 
+% -------------------------- EEG others -----------------------------------
+baseline1_type_name = "b1";
+baseline2_type_name = "b2";
+video_type_names = "v1 / v2 / v3 ...";
+
+
+
 
 % DEV
 % cleaner cmd window

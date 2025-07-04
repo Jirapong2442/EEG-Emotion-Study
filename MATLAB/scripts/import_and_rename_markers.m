@@ -7,21 +7,39 @@ cd(dir.eeg_data);
 fprintf("\n##### Import Curry EEG data\n")
 
 %% filter markers
+
+% % set error flag -- if empty / contains duplicate / contain empty types ("")
+% if isempty(EEG.event) || any(EEG.event.type == "") || any(ismissing(EEG.event.type)) || numel(EEG.event.type) ~= numel(unique(EEG.event.type))
+%     dev.markers_error = true;
+% else
+%     dev.markers_error = false;
+% end
+% 
+% % check error flag
+% if dev.markers_error
+%     error("##### Markers contain error.");
+% end
+
+
 for i = 1:numel(EEG.event)
     EEG.event(i).keep = 0;
 end
+
 EEG.event = orderfields(EEG.event, [4,1:3]);
-
 open EEG
-
 fprintf("\n##### Go EEG.event\n")
 fprintf("##### Keep markers by setting 'keep' to 1 for corresponding rows, then proceed\n")
 
 
+
 %% rename markers
-% TODO: after adding the myDurSeconds, automatically add more markers
-% indicating the end of each section
-EEG.urevent = EEG.urevent([EEG.event.keep] == 1);
+
+% % check error flag
+% if dev.markers_error
+%     error("##### Markers contain error.");
+% end
+
+% EEG.urevent = EEG.urevent([EEG.event.keep] == 1);
 EEG.event = EEG.event([EEG.event.keep] == 1);
 for i = 1:numel(EEG.event)
     EEG.event(i).urevent = i;
@@ -32,18 +50,20 @@ for i = 1:numel(EEG.event)
     EEG.event(i).myDurSeconds = 0;
 end
 
-fprintf("\n##### Rename 'type' (markers) and fill in 'myDurSeconds', then proceed\n")
+fprintf("\n##### check if: no. of rows = no. of vids + 2");
+fprintf("\n##### Then, rename 'type' (markers) and fill in 'myDurSeconds', and proceed");
+fprintf("\n-> Baseline1 type name: %s\n-> Baseline2 type name: %s\n-> Video type names: %s\n",baseline1_type_name,baseline2_type_name,video_type_names);
 % 11, 12 = start, end baseline
 % 1,2,3,4,5,6 = reel sessions
 
-%% TEST
-EEG = pop_loadset('filename','test_add_dur_markers.set','filepath','C:\\Users\\CUHK-ARHOME-054\\Desktop\\EEG-Emotion-Study\\MATLAB\\eeg_data\\test2\\');
-[ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0 );
-
-
 %% save dataset
 
-% NOTE: initialize this struct my clearing it, so that duplicating first row is valid
+% % check error flag
+% if dev.markers_error
+%     error("##### Markers contain error.");
+% end
+
+% NOTE: initialize this struct by clearing it, so that duplicating first row is valid
 
 clear new_EEG_event;
 new_idx = 1;
@@ -70,15 +90,20 @@ for i = 1:numel(EEG.event)
     end
 end
 
-% copy back to EEG.event and EEG.urevent
+% copy back -> EEG.event
 new_EEG_event = rmfield(new_EEG_event, 'myDurSeconds');
 EEG.event = new_EEG_event;
 
-
+% copy back -> EEG.urevent
 EEG.urevent = EEG.event; % direct copy
 EEG.urevent = rmfield(EEG.urevent, 'urevent');
 
 %%
+
+% if dev.markers_error
+%     error("##### Markers contain error.");
+% end
+
 % for i = 1:numel(EEG.event)
 %     EEG.urevent(i).type = EEG.event(i).type;
 %     EEG.urevent(i).myDurSeconds = EEG.event(i).myDurSeconds;
@@ -89,3 +114,5 @@ eeglab redraw;
 
 fprintf("\n##### Markers renamed!\n")
 fprintf("!!!!! save dataset -> markers_renamed\n")
+
+
