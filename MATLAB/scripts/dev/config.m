@@ -26,9 +26,9 @@ used_channels = { ...
 
 
 % -------------------------- EEG others -----------------------------------
-baseline1_type_name = "b1";
-baseline2_type_name = "b2";
-video_type_names = "v1 / v2 / v3 ...";
+baseline1_type_name = 'b1';
+baseline2_type_name = 'b2';
+video_type_names = 'v1 / v2 / v3 ...';
 
 
 

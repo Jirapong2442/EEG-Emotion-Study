@@ -6,19 +6,7 @@ cd(dir.eeg_data);
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab
 fprintf("\n##### Import Curry EEG data\n")
 
-%% filter markers
-
-% % set error flag -- if empty / contains duplicate / contain empty types ("")
-% if isempty(EEG.event) || any(EEG.event.type == "") || any(ismissing(EEG.event.type)) || numel(EEG.event.type) ~= numel(unique(EEG.event.type))
-%     dev.markers_error = true;
-% else
-%     dev.markers_error = false;
-% end
-% 
-% % check error flag
-% if dev.markers_error
-%     error("##### Markers contain error.");
-% end
+%% ----------------------- filter markers ---------------------------------
 
 
 for i = 1:numel(EEG.event)
@@ -31,15 +19,9 @@ fprintf("\n##### Go EEG.event\n")
 fprintf("##### Keep markers by setting 'keep' to 1 for corresponding rows, then proceed\n")
 
 
+%% --------------------- rename markers -----------------------------------
 
-%% rename markers
 
-% % check error flag
-% if dev.markers_error
-%     error("##### Markers contain error.");
-% end
-
-% EEG.urevent = EEG.urevent([EEG.event.keep] == 1);
 EEG.event = EEG.event([EEG.event.keep] == 1);
 for i = 1:numel(EEG.event)
     EEG.event(i).urevent = i;
@@ -56,12 +38,8 @@ fprintf("\n-> Baseline1 type name: %s\n-> Baseline2 type name: %s\n-> Video type
 % 11, 12 = start, end baseline
 % 1,2,3,4,5,6 = reel sessions
 
-%% save dataset
+%% ------------------------- save dataset ---------------------------------
 
-% % check error flag
-% if dev.markers_error
-%     error("##### Markers contain error.");
-% end
 
 % NOTE: initialize this struct by clearing it, so that duplicating first row is valid
 
@@ -97,17 +75,6 @@ EEG.event = new_EEG_event;
 % copy back -> EEG.urevent
 EEG.urevent = EEG.event; % direct copy
 EEG.urevent = rmfield(EEG.urevent, 'urevent');
-
-%%
-
-% if dev.markers_error
-%     error("##### Markers contain error.");
-% end
-
-% for i = 1:numel(EEG.event)
-%     EEG.urevent(i).type = EEG.event(i).type;
-%     EEG.urevent(i).myDurSeconds = EEG.event(i).myDurSeconds;
-% end
 
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 2, 'setname', 'markers renamed', 'gui','off');
 eeglab redraw;

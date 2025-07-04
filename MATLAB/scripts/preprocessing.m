@@ -26,11 +26,14 @@ for i = 1:length(all_event_types)
     end
 end
 
-marker21start_idx = find(strcmp(all_event_types, '21'));
-marker22end_idx = find(strcmp(all_event_types, '22'));
+baseline1_start_name = [baseline1_type_name, 'start'];
+baseline2_end_name = [baseline2_type_name, 'end'];
 
-start_time_ms = EEG.event(marker21start_idx).latency - 1; % don't completely remove marker 21
-end_time_ms = EEG.event(marker22end_idx).latency;
+baseline1_start_idx = find(strcmp(all_event_types, baseline1_start_name));
+baseline2_end_idx = find(strcmp(all_event_types, baseline2_end_name));
+
+start_time_ms = EEG.event(baseline1_start_idx).latency - 1; % don't completely remove marker 21
+end_time_ms = EEG.event(baseline2_end_idx).latency;
 % end_time_ms = EEG.event(marker12_idx).latency + 2 * 60 * EEG.srate;
 
 rej = [0 start_time_ms; end_time_ms EEG.pnts];
@@ -97,8 +100,7 @@ end
 
 %% add back rejected markers (within rejected segments earlier)
 
-% identify missing markers
-% CHECK: [] type
+% identify missing markers (CHECKME)
 event_type = string({EEG.event.type});
 urevent_type = string({EEG.urevent.type});
 
