@@ -2,7 +2,7 @@
 % =========================================================================
 
 config;
-cd(dir.eeg_data);
+cd(dir.all_data);
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab
 fprintf("\n##### Import Curry EEG data\n")
 
@@ -79,7 +79,6 @@ EEG.urevent = rmfield(EEG.urevent, 'urevent');
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 2, 'setname', 'markers renamed', 'gui','off');
 eeglab redraw;
 
-fprintf("\n##### Markers renamed!\n")
-fprintf("!!!!! save dataset -> markers_renamed\n")
+fprintf("\n!!!!! save dataset -> markers_renamed\n")
 
 

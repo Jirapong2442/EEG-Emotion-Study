@@ -5,11 +5,11 @@ convenient_buttons;
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab;
 
 % === CHANGE HERE =========================================================
-subject_ID = 'test2';
+subject_ID = 'test4';
 % =========================================================================
 
 file_name = 'markers_renamed.set';
-file_dir = fullfile(dir.eeg_data, subject_ID);
+file_dir = fullfile(dir.all_data, subject_ID, 'eeg');
 
 EEG = pop_loadset('filename',file_name,'filepath',file_dir);
 [ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0 );
@@ -32,20 +32,20 @@ baseline2_end_name = [baseline2_type_name, 'end'];
 baseline1_start_idx = find(strcmp(all_event_types, baseline1_start_name));
 baseline2_end_idx = find(strcmp(all_event_types, baseline2_end_name));
 
-start_time_ms = EEG.event(baseline1_start_idx).latency - 1; % don't completely remove marker 21
-end_time_ms = EEG.event(baseline2_end_idx).latency;
-% end_time_ms = EEG.event(marker12_idx).latency + 2 * 60 * EEG.srate;
+start_time_ms = EEG.event(baseline1_start_idx).latency - 10; 
+end_time_ms = EEG.event(baseline2_end_idx).latency + 10;
+% (-10 , +10 = don't completely remove the original markers)
 
 rej = [0 start_time_ms; end_time_ms EEG.pnts];
 
 EEG = eeg_eegrej( EEG, rej);
-[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','time','gui','off'); 
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','trim start2end time','gui','off'); 
 
 
 %% remove unused channels - channels
 
 EEG = pop_select( EEG, 'channel',used_channels);
-[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','channels','gui','off');
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','rej unused chans','gui','off');
 
 
 %% resampling - resampled
@@ -53,12 +53,12 @@ EEG = pop_select( EEG, 'channel',used_channels);
 EEG = pop_resample( EEG, 250);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','resampled','gui','off'); 
 
-
 %% band filtering - filtered
 
-EEG = pop_eegfiltnew(EEG, 'locutoff',48,'hicutoff',52,'revfilt',1);
+% EEG = pop_eegfiltnew(EEG, 'locutoff',48,'hicutoff',52,'revfilt',1);
 EEG = pop_eegfiltnew(EEG, 'locutoff',0.5);
-[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','filtered','gui','off'); 
+EEG = pop_eegfiltnew(EEG, 0.5, 45, [], 0, [], 0, [], 4, 'design', 'butter');
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','frq band filtered','gui','off'); 
 
 
 %% reject bad channels - bad chans
@@ -67,10 +67,18 @@ try
     % found and get bad channels
     vars;
     temp = ['bad_channels_' subject_ID];
-    bad_channels = pp.(temp);
+    bad_channels = param.(temp);
     % reject bad channels
     EEG = pop_select( EEG, 'rmchannel',bad_channels);
-    [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'gui','off');
+    [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','rej bad chans','gui','off'); 
+    try
+        temp = ['bad_channels_no_interp_' subject_ID];
+        bad_channels_no_interp = param.(temp);
+        % reject bad channels without interpolation
+        EEG = pop_select( EEG, 'rmchannel',bad_channels_no_interp);
+        [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','rej bad chans (without interp)','gui','off'); 
+    catch
+    end
 
 catch
     % bad channels were not defined in the past
@@ -86,10 +94,10 @@ try
     % found and get bad channels
     vars;
     temp = ['reject_segments_' subject_ID];
-    reject_segments = pp.(temp);
+    reject_segments = param.(temp);
     % reject bad channels
     EEG = eeg_eegrej( EEG, reject_segments);
-    [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'gui','off');
+    [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','rej segments','gui','off'); 
 
 catch
     % bad channels were not defined in the past
@@ -98,7 +106,9 @@ catch
     fprintf("\n##### no need re-running. type 'eegh' and put rejected segments in var\n")
 end
 
-%% add back rejected markers (within rejected segments earlier)
+%% refill back rejected markers (within rejected segments earlier)
+% TODO: if more than 1 marker are rejected in the same boundary segment,
+% add back all of them. 
 
 % identify missing markers (CHECKME)
 event_type = string({EEG.event.type});
@@ -156,6 +166,7 @@ for i = 1:length(missing_markers)
         end
     end
 end
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','refill rej markers (if any)','gui','off'); 
 
 %% ICA
 
@@ -168,10 +179,10 @@ fprintf("\n##### Manually proceed by rejecting selected ICs")
 
 %% channel interpolation - chan interpolated
 
-% get bad channels indices 
+
 temp = ['bad_channels_' subject_ID];
-bad_channels = pp.(temp);
-bad_channels_idx = find(ismember(used_channels, bad_channels));
+bad_channels = param.(temp);
+bad_channels = strjoin(bad_channels, ' ');
 
 % load channel location reference set for EEGLAB
 % it requires a direct dataset for reference
@@ -183,6 +194,36 @@ ref_set_idx = CURRENTSET;
 % jump back to current set after loading the reference set
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, ref_set_idx,'retrieve',current_set_idx,'study',0);
 
-% interpolate chans
-EEG = pop_interp(EEG, ALLEEG(ref_set_idx).chanlocs(bad_channels_idx), 'spherical');
-[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 2,'gui','off'); 
+eeglab redraw;
+% do manually cuz order might be different each time
+fprintf("\n##### Click 'Use specific channels of other dataset'");
+fprintf("\n##### %i -> Dataset Index", ref_set_idx);
+fprintf("\n##### %s -> Channels to be interpolated\n", bad_channels);
+
+% x ARCHIVE
+
+% % get bad channels indices 
+% temp = ['bad_channels_' subject_ID];
+% bad_channels = param.(temp);
+% bad_channels_idx = find(ismember(used_channels, bad_channels));
+% 
+% % load channel location reference set for EEGLAB
+% % it requires a direct dataset for reference
+% current_set_idx = CURRENTSET;
+% EEG = pop_loadset('filename','chan_loc_only_ref.set','filepath',dir.scripts);
+% [ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0 );
+% ref_set_idx = CURRENTSET;
+% 
+% % jump back to current set after loading the reference set
+% [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, ref_set_idx,'retrieve',current_set_idx,'study',0);
+% 
+% % interpolate chans
+% EEG = pop_interp(EEG, ALLEEG(ref_set_idx).chanlocs(bad_channels_idx), 'spherical');
+% [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 2,'gui','off'); 
+
+%% Re-referencing
+
+EEG = pop_reref( EEG, []);
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','re-referenced','gui','off'); 
+
+fprintf("\n!!!!! save dataset -> preprocessed\n")

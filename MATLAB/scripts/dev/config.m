@@ -1,8 +1,8 @@
 
 % ---------------------- FILES AND DIRECTORIES ----------------------------
-dir.root = 'C:\Users\CUHK-ARHOME-054\Desktop\EEG-Emotion-Study\MATLAB';
-dir.scripts = fullfile(dir.root, 'scripts');
-dir.eeg_data = fullfile(dir.root, 'eeg_data');
+dir.root = 'C:\Users\CUHK-ARHOME-054\Desktop\EEG-Emotion-Study';
+dir.scripts = fullfile(dir.root, 'MATLAB', 'scripts');
+dir.all_data = fullfile(dir.root, 'all_data');
 
 addpath(genpath(dir.scripts)) % Add with all sub_folders
 savepath; % NOTE save for next session too
@@ -19,7 +19,7 @@ used_channels = { ...
 'P9', 'P7', 'P5', 'P3', 'P1', 'PZ', 'P2', 'P4', 'P6', 'P8', 'P10', ...
 'PO7', 'PO3', 'POZ', 'PO4', 'PO8', ...
 'O1', 'OZ', 'O2' ...
-'CBZ','VEO','HEO' ...
+'VEO','HEO' ...
 };
 
 %{'CBZ','VEO','HEO','EMG1','EMG2','EMG3','EMG4','EMG5','EMG6','TRIGGER'}

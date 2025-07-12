@@ -1,7 +1,7 @@
 
 
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab;
-EEG = pop_loadset('filename','preprocessed.set','filepath','C:\\Users\\CUHK-ARHOME-054\\Desktop\\EEG-Emotion-Study\\MATLAB\\eeg_data\\test2\\');
+EEG = pop_loadset('filename','preprocessed.set','filepath','C:\\Users\\CUHK-ARHOME-054\\Desktop\\EEG-Emotion-Study\\all_data\\test4\\eeg\\');
 [ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0 );
 
 all_event_types = {EEG.event.type};
@@ -15,11 +15,11 @@ for i = 1:length(all_event_types)
 end
 
 %% ONLY VIDEOS
-marker1_idx = find(strcmp(all_event_types, '1'));
-marker6_idx = find(strcmp(all_event_types, '6'));
+markerStart_idx = find(strcmp(all_event_types, 'v1start'));
+markerEnd_idx = find(strcmp(all_event_types, 'v7end'));
 
-start_time_ms = EEG.event(marker1_idx).latency;
-end_time_ms = EEG.event(marker6_idx).latency; % in the real one it has to trim at the end of this instead.
+start_time_ms = EEG.event(markerStart_idx).latency;
+end_time_ms = EEG.event(markerEnd_idx).latency; 
 
 rej_segments = [0 start_time_ms; end_time_ms EEG.pnts];
 
@@ -27,23 +27,25 @@ EEG = eeg_eegrej( EEG, rej_segments);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','time','gui','off')
 
 %% ONLY BASELINE 1
-marker11_idx = find(strcmp(all_event_types, '11'));
+markerStart_idx = find(strcmp(all_event_types, 'b1start'));
+markerEnd_idx = find(strcmp(all_event_types, 'b1end'));
 
-% start_time_ms = 0;
-end_time_ms = EEG.event(marker6_idx).latency + 2*60*EEG.srate; % in the real one it has to trim at the end of this instead.
+start_time_ms = EEG.event(markerStart_idx).latency;
+end_time_ms = EEG.event(markerEnd_idx).latency; 
 
-rej_segments = [end_time_ms EEG.pnts];
+rej_segments = [0 start_time_ms; end_time_ms EEG.pnts];
 
 EEG = eeg_eegrej( EEG, rej_segments);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','time','gui','off')
 
 %% ONLY BASELINE 2
-marker12_idx = find(strcmp(all_event_types, '12'));
+markerStart_idx = find(strcmp(all_event_types, 'b2start'));
+markerEnd_idx = find(strcmp(all_event_types, 'b2end'));
 
-start_time_ms = EEG.event(marker12_idx).latency;
-% end_time_ms = EEG.pnts; 
+start_time_ms = EEG.event(markerStart_idx).latency;
+end_time_ms = EEG.event(markerEnd_idx).latency; 
 
-rej_segments = [0 start_time_ms];
+rej_segments = [0 start_time_ms; end_time_ms EEG.pnts];
 
 EEG = eeg_eegrej( EEG, rej_segments);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','time','gui','off')

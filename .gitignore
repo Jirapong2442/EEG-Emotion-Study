@@ -35,4 +35,4 @@ codegen/
 # buildtool cache folder
 .buildtool/
 
-/MATLAB/eeg_data
+/all_data
