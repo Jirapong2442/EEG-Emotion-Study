@@ -1,0 +1,7 @@
+1. put video of interest into a video folder.
+2. cd C:\Users\NA\Saved Games\short_vdo\EMO-AffectNetModel-main
+2. run the following script to predict facial expression:  
+	python run.py --path_video video/ --path_save report/
+	output: a csv file consisting of probability of facial expression 
+3. run the following script to visualize the facial expression in video: 	python visualization.py
+	output: annotated facial expression in video_result folder
