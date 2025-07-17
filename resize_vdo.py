@@ -1,36 +1,35 @@
-import cv2
 import os
+from moviepy.editor import *
 
-path_folder = "C:/Users/NA/Saved Games/reels1/"
+# Define input and output parameters
+path_folder = "C:/Users/NA/Saved Games/cloned/test_reels2/original/"
+output_path = "C:/Users/NA/Saved Games/cloned/test_reels2/"
 new_width = 450
 new_height = 800
 
+# Process each video file in the folder
 for file in os.listdir(path_folder):
-    if '.mp4' in file:
+    if file.endswith('.mp4'):
         file_name = file[:-4]
         out_name = "resized_" + file
-        cap = cv2.VideoCapture(os.path.join(path_folder,file))
-        if not cap.isOpened():
-            print("Error: could not open VDO")
+        input_path = os.path.join(path_folder, file)
+        output_path = os.path.join(path_folder, out_name)
 
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        num_frame = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  
-        out_path_vod = os.path.join(path_folder,out_name)
-        out_vdo = cv2.VideoWriter(out_path_vod, fourcc, fps, (new_width, new_height))
+        try:
+            # Load the video file
+            video = VideoFileClip(input_path)
 
-        current_frame = 0
-        while current_frame < num_frame:
-            ret, frame = cap.read()
-            if not ret:
-                print("Error: Could not read frame.")
-                break
-            resized_frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
-            out_vdo.write(resized_frame)
-            current_frame += 1
+            # Resize (crop) the video to the desired dimensions
+            resized_video = video.resize((new_width, new_height))
 
-        # Release resources
-        cap.release()
-        out_vdo.release()
-        print(f"Video trimmed and cropped successfully and saved as {out_path_vod}")
+            # Write the output video with audio
+            resized_video.write_videofile(output_path, codec='libx264', audio_codec='aac')
 
+            # Close the video file to free resources
+            resized_video.close()
+            video.close()
+
+            print(f"Video cropped and saved with audio as {output_path}")
+
+        except Exception as e:
+            print(f"Error processing {file}: {str(e)}")
