@@ -1,12 +1,13 @@
 
 % ---------------------- FILES AND DIRECTORIES ----------------------------
+% EDIT HERE
 dir.root = 'C:\Users\CUHK-ARHOME-054\Desktop\EEG-Emotion-Study';
-dir.scripts = fullfile(dir.root, 'MATLAB', 'scripts');
-dir.all_data = fullfile(dir.root, 'all_data');
 
-addpath(genpath(dir.scripts)) % Add with all sub_folders
+dir.scripts = fullfile(dir.root, 'MATLAB (EEG processing)', 'scripts');
+dir.all_data = fullfile(dir.root, 'ALL_DATA');
+
+addpath(genpath(dir.root)) % Add with all sub_folders
 savepath; % NOTE save for next session too
-
 
 % ------------------------------- EEG -------------------------------------
 used_channels = { ...
@@ -26,18 +27,13 @@ used_channels = { ...
 
 
 % -------------------------- EEG others -----------------------------------
-baseline1_type_name = 'b1';
-baseline2_type_name = 'b2';
-video_type_names = 'v1 / v2 / v3 ...';
+
+% Just to show devs how to rename the markers
+baseline1_type_name = "'b1'";
+baseline2_type_name = "'b2'";
+video_type_names = "'v1', 'v2', 'v3' ...";
 
 
 
+fprintf('## config.m loaded\n');
 
-% DEV
-% cleaner cmd window
-dev.temp_script_name = "config";
-if ~isfield(dev, 'clean')|| ~dev.clean
-    fprintf('\n## %s.m loaded\n', dev.temp_script_name);
-end
-
-%test
