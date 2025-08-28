@@ -1,16 +1,16 @@
-config; % load this file once directly, then no need in future
-vars;
+
+config; % directly load this file once
+
+preprocessing_vars;
 convenient_buttons;
 
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab;
 
-% === CHANGE HERE =========================================================
-subject_ID = 'test4';
-% =========================================================================
+% EDIT HERE
+subject_ID = 'g1';
 
 file_name = 'markers_renamed.set';
-file_dir = fullfile(dir.all_data, subject_ID, 'eeg');
-
+file_dir = fullfile(dir.all_data, subject_ID);
 EEG = pop_loadset('filename',file_name,'filepath',file_dir);
 [ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0 );
 
@@ -26,14 +26,12 @@ for i = 1:length(all_event_types)
     end
 end
 
-baseline1_start_name = [baseline1_type_name, 'start'];
-baseline2_end_name = [baseline2_type_name, 'end'];
+baseline1_start_idx = find(strcmp(all_event_types, 'b1start'));
+baseline2_end_idx = find(strcmp(all_event_types, 'b2end'));
 
-baseline1_start_idx = find(strcmp(all_event_types, baseline1_start_name));
-baseline2_end_idx = find(strcmp(all_event_types, baseline2_end_name));
-
-start_time_ms = EEG.event(baseline1_start_idx).latency - 10; 
-end_time_ms = EEG.event(baseline2_end_idx).latency + 10;
+sample_margin = 10;
+start_time_ms = EEG.event(baseline1_start_idx).latency - sample_margin; 
+end_time_ms = EEG.event(baseline2_end_idx).latency + sample_margin;
 % (-10 , +10 = don't completely remove the original markers)
 
 rej = [0 start_time_ms; end_time_ms EEG.pnts];
@@ -52,6 +50,25 @@ EEG = pop_select( EEG, 'channel',used_channels);
 
 EEG = pop_resample( EEG, 250);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','resampled','gui','off'); 
+
+%% add custom time channel
+
+% Get dimensions
+[num_channels, num_timepoints] = size(EEG.data);
+
+% Create new channel with vectorized operations
+new_channel = zeros(1, num_timepoints);
+
+new_margin = 3;
+if num_timepoints >= new_margin % NOTE: margin x 0.25 is close to 3
+    new_channel(new_margin:end) = 0.004 * (0:(num_timepoints - new_margin));
+end
+
+% Add to EEG.data
+EEG.data = [EEG.data; new_channel];
+EEG.nbchan = EEG.nbchan + 1;
+
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','custom time chan','gui','off'); 
 
 %% band filtering - filtered
 

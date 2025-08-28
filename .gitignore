@@ -35,4 +35,4 @@ codegen/
 # buildtool cache folder
 .buildtool/
 
-/all_data
+/ALL_DATA
