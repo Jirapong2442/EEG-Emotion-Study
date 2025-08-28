@@ -2,16 +2,17 @@ import os
 from moviepy.editor import *
 
 # Define input and output parameters
-path_folder = "C:/Users/NA/Saved Games/cloned/reels3/original/"
-output_folder = "C:/Users/NA/Saved Games/cloned/reels3/"
+path_folder = "C:/Users/NA/Saved Games/cloned/p7/"
+output_folder = path_folder + "resized/"
 new_width = 450
 new_height = 800
 
+os.mkdir(output_folder)
 # Process each video file in the folder
 for file in os.listdir(path_folder):
     if file.endswith('.mp4'):
         file_name = file[:-4]
-        out_name = "resized_" + file
+        out_name =  file
         input_path = os.path.join(path_folder, file)
         out_path = os.path.join(output_folder, out_name)
 
