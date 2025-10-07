@@ -1,3 +1,6 @@
+use both
+% EEG.history and eegh
+
 %% EDF vs BDF
 
 EDF     | BDF

@@ -1,13 +1,13 @@
 
 % ---------------------- FILES AND DIRECTORIES ----------------------------
-% EDIT HERE
-dir.root = 'C:\Users\CUHK-ARHOME-054\Desktop\EEG-Emotion-Study';
+% CHANGE
+dir.root = 'C:\Users\RaymondTeam\Desktop\EEE';
 
-dir.scripts = fullfile(dir.root, 'MATLAB (EEG processing)', 'scripts');
-dir.all_data = fullfile(dir.root, 'ALL_DATA');
+dir.scripts = fullfile(dir.root, 'MATLAB', 'scripts');
+dir.all_data = fullfile(dir.root, 'EEG-Emotion-Study', 'MATLAB');
 
 addpath(genpath(dir.root)) % Add with all sub_folders
-savepath; % NOTE save for next session too
+savepath; % save for next session too
 
 % ------------------------------- EEG -------------------------------------
 used_channels = { ...
@@ -23,7 +23,7 @@ used_channels = { ...
 'VEO','HEO' ...
 };
 
-%{'CBZ','VEO','HEO','EMG1','EMG2','EMG3','EMG4','EMG5','EMG6','TRIGGER'}
+%_ {'CBZ','VEO','HEO','EMG1','EMG2','EMG3','EMG4','EMG5','EMG6','TRIGGER'}
 
 
 % -------------------------- EEG others -----------------------------------
@@ -32,7 +32,6 @@ used_channels = { ...
 baseline1_type_name = "'b1'";
 baseline2_type_name = "'b2'";
 video_type_names = "'v1', 'v2', 'v3' ...";
-
 
 
 fprintf('## config.m loaded\n');

@@ -5,7 +5,9 @@ buttons = {
     
 };
 
-%% ---------------- Archived buttons --------------------------------------
+
+
+
 % struct('name', 'load savepoint', 'code', ...
 %         ['temp.backup_name = input(''Enter the field name: '', ''s'');' ...
 %         'if isfield(savepoint, temp.backup_name),' ...
@@ -15,7 +17,6 @@ buttons = {
 %         'error([''Field "'' temp.backup_name ''" does not exist in backup.'']);' ...
 %         'end'])
 
-%%
 % EXAMPLES:
 % buttons = {
 %     struct('name', 'Say Hello', 'code', 'disp("Hello, world!")'),
@@ -30,6 +31,9 @@ buttons = {
 %     struct('name', 'Custom', 'code', ['a = 5;\nb = 10;\ndisp(a+b)']),
 % };
 
+
+
+%% Button loader
 % --- Configurable Minimum Window Size ---
 min_fig_width = 300;  % Minimum width in pixels
 min_fig_height = 100; % Minimum height in pixels
@@ -74,20 +78,4 @@ end
 function pos = enforceMinSize(pos, minW, minH)
     pos(3) = max(pos(3), minW);
     pos(4) = max(pos(4), minH);
-end
-
-% --- Instructions ---
-% To add a button, add a new struct to the 'buttons' cell array above.
-% The 'code' field can be any MATLAB code (single or multiline, or a script/function call).
-% Multiline code can be separated by '\n' or by using [ ... ] to concatenate lines.
-
-
-
-
-
-% DEV
-% cleaner cmd window
-dev.temp_script_name = "convenient_buttons";
-if ~isfield(dev, 'clean')|| ~dev.clean
-    fprintf('\n## %s.m loaded\n', dev.temp_script_name);
 end

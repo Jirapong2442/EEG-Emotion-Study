@@ -1,12 +1,13 @@
 
-config; % directly load this file once
+
+config; % MAKE SURE TO RUN THIS FILE DIRECTLY ONCE FIRST
 
 preprocessing_vars;
 convenient_buttons;
 
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab;
 
-% EDIT HERE
+% CHANGE
 subject_ID = 'g1';
 
 file_name = 'markers_renamed.set';
