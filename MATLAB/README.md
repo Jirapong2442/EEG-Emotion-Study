@@ -1,7 +1,18 @@
+# Required Add-Ons and Plugins
+- EEGLAB, with plugins:
+    - clean_rawdata
+    - Cleanline
+    - firfilt
+    - dipfit
+    - loadcurry
+    - Adjust
+- Signal Processing Toolbox
+
+# Scripts (unfinished documentation)
 ## Settings and dev scripts  
-**config**                  -> basic settings (Run this file once directly)  
-**vars**                    -> store variables for different experimental trials  
-**convenient_buttons**      -> quick codes to run for debugging purposes  
+- **config** -> asdlasjkdhflkajsdhflkasjdhfl
+- **\*_vars**  -> store variables for different experimental trials and purposes
+- **editable_buttons** -> quick codes to run for debugging purposes  
 
 ---
 ## Anlaysis scripts  

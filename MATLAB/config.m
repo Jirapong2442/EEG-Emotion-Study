@@ -1,38 +1,39 @@
-
-% ---------------------- FILES AND DIRECTORIES ----------------------------
-% CHANGE
-dir.root = 'C:\Users\RaymondTeam\Desktop\EEE';
-
-dir.scripts = fullfile(dir.root, 'MATLAB', 'scripts');
-dir.all_data = fullfile(dir.root, 'EEG-Emotion-Study', 'MATLAB');
-
-addpath(genpath(dir.root)) % Add with all sub_folders
-savepath; % save for next session too
-
-% ------------------------------- EEG -------------------------------------
-used_channels = { ...
-'FP1', 'FP2', ...
-'AF7', 'AF3', 'AFZ', 'AF4', 'AF8', ...
-'F7', 'F5', 'F3', 'F1', 'FZ', 'F2', 'F4', 'F6', 'F8', ...
-'FT9', 'FT7', 'FC5', 'FC3', 'FC1', 'FCZ', 'FC2', 'FC4', 'FC6', 'FT8', 'FT10', ...
-'T7', 'C5', 'C3', 'C1', 'CZ', 'C2', 'C4', 'C6', 'T8', ...
-'TP7', 'CP5', 'CP3', 'CP1', 'CPZ', 'CP2', 'CP4', 'CP6', 'TP8', ...
-'P9', 'P7', 'P5', 'P3', 'P1', 'PZ', 'P2', 'P4', 'P6', 'P8', 'P10', ...
-'PO7', 'PO3', 'POZ', 'PO4', 'PO8', ...
-'O1', 'OZ', 'O2' ...
-'VEO','HEO' ...
-};
-
-%_ {'CBZ','VEO','HEO','EMG1','EMG2','EMG3','EMG4','EMG5','EMG6','TRIGGER'}
-
-
-% -------------------------- EEG others -----------------------------------
-
-% Just to show devs how to rename the markers
-baseline1_type_name = "'b1'";
-baseline2_type_name = "'b2'";
-video_type_names = "'v1', 'v2', 'v3' ...";
-
-
-fprintf('## config.m loaded\n');
-
+function config()
+    % ---------------------- FILES AND DIRECTORIES ----------------------------
+    % CHANGE
+    dir.root = 'C:\Users\RaymondTeam\Desktop\EEE';
+    
+    dir.scripts = fullfile(dir.root, 'MATLAB', 'scripts');
+    dir.all_data = fullfile(dir.root, 'EEG-Emotion-Study', 'MATLAB');
+    
+    % FOLLOW - can remove this one
+    addpath(genpath(dir.root)) % Add with all sub_folders
+    savepath; % save for next session too
+    
+    % ------------------------------- EEG -------------------------------------
+    used_channels = { ...
+    'FP1', 'FP2', ...
+    'AF7', 'AF3', 'AFZ', 'AF4', 'AF8', ...
+    'F7', 'F5', 'F3', 'F1', 'FZ', 'F2', 'F4', 'F6', 'F8', ...
+    'FT9', 'FT7', 'FC5', 'FC3', 'FC1', 'FCZ', 'FC2', 'FC4', 'FC6', 'FT8', 'FT10', ...
+    'T7', 'C5', 'C3', 'C1', 'CZ', 'C2', 'C4', 'C6', 'T8', ...
+    'TP7', 'CP5', 'CP3', 'CP1', 'CPZ', 'CP2', 'CP4', 'CP6', 'TP8', ...
+    'P9', 'P7', 'P5', 'P3', 'P1', 'PZ', 'P2', 'P4', 'P6', 'P8', 'P10', ...
+    'PO7', 'PO3', 'POZ', 'PO4', 'PO8', ...
+    'O1', 'OZ', 'O2' ...
+    'VEO','HEO' ...
+    };
+    
+    %_ {'CBZ','VEO','HEO','EMG1','EMG2','EMG3','EMG4','EMG5','EMG6','TRIGGER'}
+    
+    
+    % -------------------------- EEG others -----------------------------------
+    
+    % Just to show devs how to rename the markers
+    baseline1_type_name = "'b1'";
+    baseline2_type_name = "'b2'";
+    video_type_names = "'v1', 'v2', 'v3' ...";
+    
+    
+    fprintf('## config.m loaded\n');
+end

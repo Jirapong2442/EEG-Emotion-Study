@@ -1,6 +1,5 @@
 
-
-config; % MAKE SURE TO RUN THIS FILE DIRECTLY ONCE FIRST
+config(); % MAKE SURE TO RUN THIS FILE DIRECTLY ONCE FIRST
 
 preprocessing_vars;
 convenient_buttons;
