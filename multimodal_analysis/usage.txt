@@ -5,3 +5,14 @@
 	output: a csv file consisting of probability of facial expression 
 3. run the following script to visualize the facial expression in video: 	python visualization.py
 	output: annotated facial expression in video_result folder
+
+
+HOW TO USE IN WSL
+1. cd reels_eeg\short_vdo\EMO-AffectNetModel-main
+2.  input the starting point (relax begin) and ending point (end of baseline) invdo_preprocessing.ipynb
+3. run trim_vdo function to trim the unneccesary part and crop the face without screen. 
+4. run the following script to predict facial expression:  
+	python run_gpu.py --path_video video/ --path_save report/
+	output: a csv file consisting of probability of facial expression 
+5. run the following script to visualize the facial expression in video: 	python visualization.py
+	output: annotated facial expression in video_result folder 
