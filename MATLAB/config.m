@@ -1,17 +1,20 @@
-function config()
+function cfg = config()
     % ---------------------- FILES AND DIRECTORIES ----------------------------
+    
     % CHANGE
-    dir.root = 'C:\Users\RaymondTeam\Desktop\EEE';
+    cfg.dir.root = 'C:\Users\RaymondTeam\Desktop\EEE';
     
-    dir.scripts = fullfile(dir.root, 'MATLAB', 'scripts');
-    dir.all_data = fullfile(dir.root, 'EEG-Emotion-Study', 'MATLAB');
+    cfg.dir.all_data = fullfile(cfg.dir.root, 'ALL_DATA');
+    cfg.dir.git = fullfile(cfg.dir.root, 'EEG-Emotion-Study');
+
+    cfg.dir.MATLAB = fullfile(cfg.dir.git, 'MATLAB');
     
-    % FOLLOW - can remove this one
-    addpath(genpath(dir.root)) % Add with all sub_folders
-    savepath; % save for next session too
+    addpath(genpath(cfg.dir.root)) % Add with all subfolders
+    % savepath; % save for next session too
     
+
     % ------------------------------- EEG -------------------------------------
-    used_channels = { ...
+    cfg.used_channels = { ...
     'FP1', 'FP2', ...
     'AF7', 'AF3', 'AFZ', 'AF4', 'AF8', ...
     'F7', 'F5', 'F3', 'F1', 'FZ', 'F2', 'F4', 'F6', 'F8', ...
@@ -27,13 +30,11 @@ function config()
     %_ {'CBZ','VEO','HEO','EMG1','EMG2','EMG3','EMG4','EMG5','EMG6','TRIGGER'}
     
     
+
     % -------------------------- EEG others -----------------------------------
     
     % Just to show devs how to rename the markers
-    baseline1_type_name = "'b1'";
-    baseline2_type_name = "'b2'";
-    video_type_names = "'v1', 'v2', 'v3' ...";
-    
+    cfg.marker_names = "gb1, gb2, pb1, pb2, g1, g2, ... p1, p2, ...";
     
     fprintf('## config.m loaded\n');
 end

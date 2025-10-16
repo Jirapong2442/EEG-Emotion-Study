@@ -3,6 +3,8 @@ from tkinter import filedialog
 import os
 import re
 
+# THIS FILE SCANS TSV FILES AND OUTPUT TWO CSV FILES (SAM1, SAM2)
+
 def select_file():
     """Open a file dialog to select a TSV file"""
     root = tk.Tk()
@@ -57,9 +59,28 @@ def generate_row_labels(filename, num_rows):
     
     return labels
 
+def generate_sam1_indices(filename):
+    """
+    Generate 4 indices for SAM1 based on filename pattern
+    For G2P files: g1, g2, p1, p2
+    For P2G files: p1, p2, g1, g2
+    """
+    # Extract the prefix from filename (before the last underscore)
+    basename = os.path.splitext(os.path.basename(filename))[0]
+    
+    # Determine if it's G2P or P2G based on filename
+    is_g2p = '_g' in basename.lower() or basename.lower().startswith('g')
+    
+    if is_g2p:
+        # G2P pattern: g1, g2, p1, p2
+        return ['g1', 'g2', 'p1', 'p2']
+    else:
+        # P2G pattern: p1, p2, g1, g2
+        return ['p1', 'p2', 'g1', 'g2']
+
 def extract_sam1_values(file_path, lines):
     """
-    Extract SAM1 values and return CSV data
+    Extract SAM1 values and return CSV data with new 4-index format
     """
     # Define target columns for SAM1
     target_columns = {
@@ -101,19 +122,42 @@ def extract_sam1_values(file_path, lines):
                         if results[phase][col] == "N/A" and value != "":
                             results[phase][col] = value
     
-    # Create CSV data
+    # Generate the new 4-index format
+    indices = generate_sam1_indices(file_path)
+    
+    # Create CSV data with new format
     csv_data = []
     
     # Header row
     csv_data.append(['', 'Valence', 'Arousal', 'Sleepy'])
     
-    # Data rows
-    for phase in ['Start', 'Next', 'End']:
-        row = [phase]
-        cols = target_columns[phase]
-        for col in cols:
-            row.append(results[phase][col])
-        csv_data.append(row)
+    # Data rows - map Start->first index, Next->second & third indices, End->fourth index
+    # Index 0: Start values
+    row0 = [indices[0]]
+    start_cols = target_columns['Start']
+    for col in start_cols:
+        row0.append(results['Start'][col])
+    csv_data.append(row0)
+    
+    # Index 1: Next values
+    row1 = [indices[1]]
+    next_cols = target_columns['Next']
+    for col in next_cols:
+        row1.append(results['Next'][col])
+    csv_data.append(row1)
+    
+    # Index 2: Next values (again)
+    row2 = [indices[2]]
+    for col in next_cols:
+        row2.append(results['Next'][col])
+    csv_data.append(row2)
+    
+    # Index 3: End values
+    row3 = [indices[3]]
+    end_cols = target_columns['End']
+    for col in end_cols:
+        row3.append(results['End'][col])
+    csv_data.append(row3)
     
     return csv_data
 
@@ -132,6 +176,7 @@ def extract_sam2_values(file_path, lines):
         'SAM2.Auditory.Value'
     ]
     
+
     # Get the second row (index 1) which contains column names
     column_names = lines[1].split('\t')
     

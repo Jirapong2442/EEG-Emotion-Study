@@ -1,84 +1,89 @@
+%% Load data
 
-config(); % MAKE SURE TO RUN THIS FILE DIRECTLY ONCE FIRST
+%{
 
-preprocessing_vars;
-convenient_buttons;
+1. For any operations that affect 'TIMEMS' channel, rmb to tmp save and put it
+back after the operaetion.
+
+%}
+
+
+% CHANGE (rmb UPPERCASES)
+subject_index = 'G2P_1';
+
+
+cfg = config(); % MAKE SURE TO INCLUDE THIS IN EVERY SCRIPT -> DETECT SUBFOLDER FUNCTIONS AND SCRIPTS
+editable_buttons();
+
+[bad_channels, reject_segments] = pp_vars(subject_index);
 
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab;
 
-% CHANGE
-subject_ID = 'g1';
+% file vars
+file_name = 'corrected_raw.set';
+file_dir = fullfile(cfg.dir.all_data, subject_index);
 
-file_name = 'markers_renamed.set';
-file_dir = fullfile(dir.all_data, subject_ID);
+% load it
 EEG = pop_loadset('filename',file_name,'filepath',file_dir);
 [ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0 );
 
-%% remove unused time data - time
 
-all_event_types = {EEG.event.type};
-
-% Handle cases where type is numeric or string
-% Convert numeric types to strings for consistent comparison
-for i = 1:length(all_event_types)
-    if isnumeric(all_event_types{i})
-        all_event_types{i} = num2str(all_event_types{i});
-    end
-end
-
-baseline1_start_idx = find(strcmp(all_event_types, 'b1start'));
-baseline2_end_idx = find(strcmp(all_event_types, 'b2end'));
-
-sample_margin = 10;
-start_time_ms = EEG.event(baseline1_start_idx).latency - sample_margin; 
-end_time_ms = EEG.event(baseline2_end_idx).latency + sample_margin;
-% (-10 , +10 = don't completely remove the original markers)
-
-rej = [0 start_time_ms; end_time_ms EEG.pnts];
-
-EEG = eeg_eegrej( EEG, rej);
-[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','trim start2end time','gui','off'); 
-
-
-%% remove unused channels - channels
-
-EEG = pop_select( EEG, 'channel',used_channels);
-[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','rej unused chans','gui','off');
-
-
-%% resampling - resampled
+%% Resampling to 250 Hz
 
 EEG = pop_resample( EEG, 250);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','resampled','gui','off'); 
 
-%% add custom time channel
+%% Add custom time chan
 
-% Get dimensions
-[num_channels, num_timepoints] = size(EEG.data);
+tmp_EEG_chanlocs = EEG.chanlocs;
 
-% Create new channel with vectorized operations
+[num_channels, num_timepoints] = size(EEG.data); % Get dimensions
+
+% init with all 0
 new_channel = zeros(1, num_timepoints);
 
-new_margin = 3;
+% fill in time data
+% [i] sample_margin = 200
+new_margin = 50; % = sample_margin x 0.25 (1000Hz -> 250Hz = ~ x 0.25)
 if num_timepoints >= new_margin % NOTE: margin x 0.25 is close to 3
-    new_channel(new_margin:end) = 0.004 * (0:(num_timepoints - new_margin));
+    new_channel(new_margin:end) = 4 * (0:(num_timepoints - new_margin));
 end
 
-% Add to EEG.data
+% Put it to EEG.data
 EEG.data = [EEG.data; new_channel];
+
+%%
+
+% --- Correct the workspace vars
 EEG.nbchan = EEG.nbchan + 1;
+EEG.chanlocs = tmp_EEG_chanlocs;
+EEG.chanlocs(end+1).labels = 'TIMEMS';
+
+% % Does nothing
+% EEG.chanlocs(end).type = '';
+% EEG.chanlocs(end).ref = '';
+
+% necessary so that creating new set won't break chanlocs
+ALLEEG(end).chanlocs = EEG.chanlocs;
+ALLEEG(end).nbchan = EEG.nbchan;
+
 
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','custom time chan','gui','off'); 
 
 %% band filtering - filtered
 
 % EEG = pop_eegfiltnew(EEG, 'locutoff',48,'hicutoff',52,'revfilt',1);
-EEG = pop_eegfiltnew(EEG, 'locutoff',0.5);
-EEG = pop_eegfiltnew(EEG, 0.5, 45, [], 0, [], 0, [], 4, 'design', 'butter');
+% EEG = pop_eegfiltnew(EEG, 'locutoff',0.5);
+% EEG = pop_eegfiltnew(EEG, 0.5, 45, [], 0, [], 0, [], 4, 'design', 'butter');
+
+EEG = pop_eegfiltnew(EEG, 'locutoff',1,'hicutoff',45); % simple 1-45 Hz band pass
+
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','frq band filtered','gui','off'); 
 
 
 %% reject bad channels - bad chans
+
+% CONT
 
 try
     % found and get bad channels
