@@ -17,6 +17,7 @@ def download_reels(out_name, main_path = "C:/Users/NA/jirapong/cloned/new_reels/
 
     vid_num = 1
     L = instaloader.Instaloader()
+    L.login("alan_eeg_xp_2", "abcdefg12345>>") # or L.login("your_username", "your_password")
     for code in code_list:
         post = Post.from_shortcode(L.context, code)
         url = post.video_url
