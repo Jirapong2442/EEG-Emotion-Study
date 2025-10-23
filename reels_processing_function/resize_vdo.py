@@ -1,5 +1,5 @@
 import os
-from moviepy.editor import *
+from moviepy import *
 
 def resize_vdo(folder_name, width=450, height=800, main_path = "C:/Users/NA/jirapong/cloned/new_reels/", resize_path = "resized/"):
 
@@ -51,8 +51,8 @@ def resize_vdo(folder_name, width=450, height=800, main_path = "C:/Users/NA/jira
                 print(f"Error processing {file}: {str(e)}")
 
 if __name__ == "__main__":
-    input_path = "C:/Users/NA/jirapong/cloned/new_reels/p2g_5/v15.mp4"
-    out_path = "C:/Users/NA/jirapong/cloned/new_reels/p2g_5/resized/v15.mp4"
+    input_path = "C:/Users/NA/jirapong/cloned/new_reels/p2g_7/Video-465.mp4"
+    out_path = "C:/Users/NA/jirapong/cloned/new_reels/p2g_7/resized/v14.mp4"
     video = VideoFileClip(input_path)
     video = video.volumex(0.8)
 
