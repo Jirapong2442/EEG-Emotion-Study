@@ -1,7 +1,7 @@
 import instaloader
 from instaloader import Post
 import os
-from moviepy.editor import *
+from moviepy import *
 import requests
 
 def download_reels(out_name, main_path = "C:/Users/NA/jirapong/cloned/new_reels/", url_path = "code.txt"):

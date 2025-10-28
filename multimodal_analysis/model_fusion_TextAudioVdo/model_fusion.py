@@ -1,22 +1,35 @@
 import torch
-from transformers import AutoTokenizer,  AutoModel, Wav2Vec2Processor, Wav2Vec2Model, ViTImageProcessor, ViTModel #BertTokenizer, BertModel,
-from moviepy import VideoFileClip
+import torch.nn as nn
+from transformers import AutoTokenizer, AutoProcessor, AutoModel, AutoImageProcessor, AutoFeatureExtractor, ASTForAudioClassification, Wav2Vec2FeatureExtractor, Wav2Vec2Model# ViTImageProcessor, ViTModel  #BertTokenizer, BertModel,
+from moviepy import *
 import whisper
 import cv2
 import numpy as np
 from speechbrain.inference.interfaces import foreign_class
+import librosa
+from speechbrain.inference import EncoderClassifier
+from PIL import Image
+from sklearn.decomposition import PCA
 
 # Load pre-trained models
- #Roberta for sentiment classification
+#Roberta for sentiment classification
 text_tokenizer = AutoTokenizer.from_pretrained('cardiffnlp/twitter-roberta-base-sentiment-latest')
 text_model = AutoModel.from_pretrained('cardiffnlp/twitter-roberta-base-sentiment-latest')
 
-#audio_processor = Wav2Vec2Processor.from_pretrained('speechbrain/emotion-recognition-wav2vec2-IEMOCAP')
-#audio_model = Wav2Vec2Model.from_pretrained('speechbrain/emotion-recognition-wav2vec2-IEMOCAP')
-# When using the model wav2vec2 make sure that your speech input is also sampled at 16Khz.
+audio_feature_extractor = AutoFeatureExtractor.from_pretrained("MIT/ast-finetuned-audioset-10-10-0.4593")
+audio_model = ASTForAudioClassification.from_pretrained("MIT/ast-finetuned-audioset-10-10-0.4593")
+#for image classification
+#image_processor = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
+#image_model = ViTModel.from_pretrained('google/vit-base-patch16-224')
 
-image_processor = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
-image_model = ViTModel.from_pretrained('google/vit-base-patch16-224')
+#for image feature extraction
+image_feature_processor = AutoImageProcessor.from_pretrained('facebook/dinov2-small')
+image_feature_model = AutoModel.from_pretrained('facebook/dinov2-small')
+
+#image classification with provided label text
+vid_model = AutoModel.from_pretrained("openai/clip-vit-base-patch32", attn_implementation="sdpa")
+vid_processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
+# for audio emotion classfication
 audio_classifier = foreign_class(
     source="speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
     pymodule_file="custom_interface.py",
@@ -24,16 +37,19 @@ audio_classifier = foreign_class(
     run_opts={"device": "cuda" if torch.cuda.is_available() else "cpu"}
 )
 
-# Step 1: Extract modalities from reel video
+
 def extract_modalities(video_path):
+    separator = '/'
+    out_path = separator.join(video_path.split("/")[:-1]) + separator
     # Extract audio
     video = VideoFileClip(video_path)
-    audio_path = "temp_audio2.wav"
+    audio_path = out_path + "temp_audio.wav"
     video.audio.write_audiofile(audio_path)
     
     # Transcribe audio to text
     whisper_model = whisper.load_model("base")
     transcription = whisper_model.transcribe(audio_path, verbose=False, word_timestamps=False)
+    
     # Extract segments with timestamps
     text_segments = [
         {"text": segment["text"], "start": segment["start"], "end": segment["end"]}
@@ -43,18 +59,20 @@ def extract_modalities(video_path):
     # Extract keyframes for visual analysis
     cap = cv2.VideoCapture(video_path)
     frames = []
+    frame_count = 0
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
-        frames.append(frame)
+        if frame_count % 30== 0: # extract every 30 frame
+            # Convert BGR (OpenCV) to RGB (PIL)
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frames.append(Image.fromarray(frame_rgb))
+        frame_count += 1
     cap.release()
-    # Select a keyframe (e.g., middle frame)
-    keyframe = frames[len(frames)//2] if frames else None
     
-    return text_segments, audio_path, keyframe
+    return text_segments, audio_path, frames
 
-# Step 2: Process each modality
 def process_text(text_segments):
     text_embeddings = []
     for segment in text_segments:
@@ -74,74 +92,125 @@ def process_audio(audio_path):
     # Use SpeechBrain's emotion-recognition-wav2vec2-IEMOCAP model
     out_prob, score, index, text_lab = audio_classifier.classify_file(audio_path)
     embedding = out_prob  # Extract embedding from the output tuple
-    return embedding
 
-'''
-def process_audio(audio_path):
-    audio, sr = librosa.load(audio_path)
-    inputs = audio_processor(audio, sampling_rate=sr, return_tensors="pt")
+    aud= AudioFileClip(audio_path)
+    audio_arr = aud.to_soundarray()
+    sampling_rate = aud.fps
+    if sampling_rate != 16000:
+        # Convert to mono if stereo
+        audio_mono = audio_arr.mean(axis=1) if audio_arr.ndim > 1 else audio_arr
+        audio_resampled = librosa.resample(audio_mono.T, orig_sr=sampling_rate, target_sr=16000)
+    waveform = torch.tensor(audio_resampled, dtype=torch.float32).unsqueeze(0).unsqueeze(0)  
+
+    feature = audio_feature_extractor(audio_resampled, sampling_rate=16000, return_tensors="pt")
+    aud_feature = feature['input_values']
     with torch.no_grad():
-        outputs = audio_model(**inputs)
-    return outputs.last_hidden_state.mean(dim=1)  # Average pooling
-'''
+        classified_aud_feature = audio_model(**feature).logits
+
+    predicted_class_ids = torch.argmax(classified_aud_feature, dim=-1).item()
+    predicted_label = audio_model.config.id2label[predicted_class_ids]
+    return embedding, aud_feature, classified_aud_feature
 
 def process_image(image):
+    labels = [
+    "A happy scene", "A sad scene", "An angry scene", 
+    "A calm moment", "An exciting moment", "A funny moment"
+    ]
     if image is None:
         return None
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    inputs = image_processor(image, return_tensors="pt")
-    with torch.no_grad():
-        outputs = image_model(**inputs)
-    return outputs.last_hidden_state[:, 0, :]  # CLS token embedding
+    
+    frame_probs = []
+    frame_embeddings = []
 
-def fuse_modalities(text_embeddings, audio_emb, image_emb):
-    # Aggregate text embeddings (average)
-    text_emb = torch.mean(torch.cat([seg["embedding"] for seg in text_embeddings], dim=0), dim=0, keepdim=True)
+    for frame in image:
+        # Preprocess frame and text
+        inputs = vid_processor(text=labels, images=frame, return_tensors="pt", padding=True)
+        
+        # Get CLIP outputs
+        with torch.no_grad():
+            outputs = vid_model(**inputs)
+            logits_per_image = outputs.logits_per_image  # Shape: (1, num_labels)
+            probs = logits_per_image.softmax(dim=1)  # Probabilities per label
+            image_features = vid_model.get_image_features(inputs["pixel_values"])  # Shape: (1, 512)
+        
+        frame_probs.append(probs.cpu().numpy()[0])  # Store probabilities
+        frame_embeddings.append(image_features.cpu().numpy()[0])  # Store embeddings
+
+    # Convert to numpy arrays
+    frame_probs = np.array(frame_probs)  # Shape: (num_frames, num_labels)
+    frame_embeddings = np.array(frame_embeddings)  # Shape: (num_frames, 512)
+    return frame_probs, frame_embeddings#outputs.last_hidden_state#[:, 0, :]  # CLS token embedding
+
+def aggregate_modalities(text_embeddings, audio_features, video_features):
+    # Text: Aggregate multiple segment embeddings
+    text_embeds = np.array([seg["embedding"].numpy() for seg in text_embeddings])  # (num_segments, 768)
+    text_agg = np.mean(text_embeds, axis=0) if len(text_embeds) > 0 else np.zeros(768)  # (768)
+    audio_agg = audio_features[0].mean(axis = 0) # (128)
+    video_agg = np.mean(video_features, axis=0)  # (512)
+    return text_agg, audio_agg, video_agg
+
+def fuse_modalities(text_agg, audio_agg, video_agg, reduce_dim=128):
+    '''
+    fuse feature for multiple modalities, apply multihead self-attnetion to comparing contribution of 3 features with themselves (3 heads) 
+    resulting in 3 heads capture features relevance / interaction of 3 modalities
+
+    '''
+    # Convert numpy arrays to PyTorch tensors
+    text_agg = torch.tensor(text_agg.squeeze(), dtype=torch.float32)  # (768)
+    video_agg = torch.tensor(video_agg, dtype=torch.float32)  # (512)
+    audio_agg = torch.tensor(audio_agg, dtype=torch.float32)  # (128)
+
+    # Define linear projection layers
+    text_projection = nn.Linear(text_agg.shape[0], reduce_dim)
+    video_projection = nn.Linear(video_agg.shape[0], reduce_dim)
     
-    # Collect valid embeddings
-    valid_embs = [emb for emb in [text_emb, audio_emb, image_emb] if emb is not None]
-    if not valid_embs:
-        return None, text_embeddings
-    
-    # Align embedding dimensions (e.g., project to common dimension)
-    embed_dim = 768  # Common dimension (e.g., BERT's output size)
-    projections = [
-        torch.nn.Linear(emb.shape[-1], embed_dim) if emb.shape[-1] != embed_dim else torch.nn.Identity()
-        for emb in valid_embs
-    ]
-    valid_embs = [proj(emb) for proj, emb in zip(projections, valid_embs)]
-    
-    # Stack embeddings for attention (shape: [num_modalities, batch_size, embed_dim])
-    emb_stack = torch.stack(valid_embs, dim=0)  # [num_modalities, 1, embed_dim]
-    
-    # Cross-modal attention
-    attention = torch.nn.MultiheadAttention(embed_dim=embed_dim, num_heads=8)
-    attn_output, _ = attention(emb_stack, emb_stack, emb_stack)
-    fused = attn_output.mean(dim=0)  # Average over modalities
-    
-    # Classifier
-    classifier = torch.nn.Linear(embed_dim, 3)  # 3 classes: positive, negative, neutral
-    logits = classifier(fused)
-    probabilities = torch.nn.functional.softmax(logits, dim=-1)
-    sentiment_map = {0: "Positive", 1: "Negative", 2: "Neutral"}
-    return sentiment_map[torch.argmax(probabilities).item()], text_embeddings
+    # Project to reduce_dim (128)
+    text_reduced = text_projection(text_agg).detach().numpy()  # (128)
+    video_reduced = video_projection(video_agg).detach().numpy()  # (128)
+    audio_reduced = audio_agg.numpy()  # Already (128)
+
+    # Attention-based fusion (from previous response, with num_heads=3)
+    class AttentionFusion(nn.Module):
+        def __init__(self, input_dim, output_dim, num_modalities):
+            super().__init__()
+            self.attention = nn.MultiheadAttention(embed_dim=input_dim, num_heads=4)
+            self.fc = nn.Linear(input_dim, output_dim)
+            self.weights = nn.Parameter(torch.ones(num_modalities) / num_modalities)
+
+        def forward(self, x):
+            x, attn_weights = self.attention(x, x, x, need_weights=True)  # (3, 1, input_dim), (3, 3)
+            x = self.fc(x.squeeze(1))  # (3, output_dim)
+            weights = torch.softmax(self.weights, dim=0)
+            x = torch.sum(x * weights.unsqueeze(-1), dim=0)  # (output_dim)
+            return x, attn_weights
+
+    modalities = torch.tensor([text_reduced, audio_reduced, video_reduced], dtype=torch.float32).unsqueeze(1)  # (3, 1, 128)
+    model = AttentionFusion(input_dim=128, output_dim=128, num_modalities=3)
+    fused_attention, attn_weights = model(modalities) #weighted representation of each modality after attending to all others
+    return fused_attention.detach().numpy(), attn_weights.detach().numpy()
 
 # Main function
 def classify_reel_sentiment(video_path):
     text, audio_path, keyframe = extract_modalities(video_path)
     text_emb = process_text(text)
-    audio_emb = process_audio(audio_path)
-    image_emb = process_image(keyframe)
-    sentiment, text_embeddings = fuse_modalities(text_emb, audio_emb, image_emb)
+    emotion_class, audio_feature, classified_feature = process_audio(audio_path)
+    vid_class, vid_emb = process_image(keyframe)
+    # text embedding 768, audio feature (1,1024,128), video feature (31 (seconds),512)
+    text_agg, audio_agg, video_agg = aggregate_modalities(text_emb, audio_feature, vid_emb)
+    fused_concat, fused_attention = fuse_modalities(text_agg, audio_agg, video_agg)
     
-    print(f"Predicted Sentiment: {sentiment}")
-    print("Transcribed Text with Timestamps:")
-    for segment in text_embeddings:
-        print(f"Text: {segment['text']}, Start: {segment['start']:.2f}s, End: {segment['end']:.2f}s")
-    
-    return sentiment, text_embeddings
+    return fused_concat, fused_attention 
 
-# Example usage
-video_path = "C:/Users/NA/Saved Games/short_vdo/reels1/v7_71.mp4"
-sentiment,text = classify_reel_sentiment(video_path)
-print(f"Predicted Sentiment: {sentiment}")
+if __name__  == "__main__":
+    # Example usage
+    video_path = "C:/Users/NA/jirapong/cloned/new_reels/g2p_4/v9.mp4"
+    fused_concat,fused_attention = classify_reel_sentiment(video_path)
+
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+
+    attn_weights = fused_attention  # (4, 4)
+    modalities = ["Text", "Audio", "Video"]
+    sns.heatmap(attn_weights.squeeze(), xticklabels=modalities, yticklabels=modalities, cmap="Blues")
+    plt.title("Attention Weights Across Modalities")
+    plt.show()

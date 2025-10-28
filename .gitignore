@@ -36,3 +36,4 @@ codegen/
 .buildtool/
 
 /ALL_DATA
+/wav2vec2_checkpoints
