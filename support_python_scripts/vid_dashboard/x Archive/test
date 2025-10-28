@@ -1,0 +1,21 @@
+import cv2
+
+print("Loading")
+
+cap = cv2.VideoCapture('/Users/alanspace/Desktop/Work/EEE/Python/test.mp4')  # Use your actual file name/path
+
+if not cap.isOpened():
+    print("Error: Could not open video file.")
+    exit()
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if ret:
+        cv2.imshow('Video', frame)
+        if cv2.waitKey(25) & 0xFF == ord('q'):  # Press 'q' to quit
+            break
+    else:
+        break
+
+cap.release()
+cv2.destroyAllWindows()

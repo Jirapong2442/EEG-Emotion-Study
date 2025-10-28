@@ -1,65 +1,290 @@
 %% Load data
 
-%{
+%   
+%   
+%       
+%   
+%   
+%   
+%   
+%   
 
-1. For any operations that affect 'TIMEMS' channel, rmb to tmp save and put it
-back after the operaetion.
-
-%}
-
+clc; clear; close all;
 
 % CHANGE (rmb UPPERCASES)
 subject_index = 'G2P_1';
 
-
-cfg = config(); % MAKE SURE TO INCLUDE THIS IN EVERY SCRIPT -> DETECT SUBFOLDER FUNCTIONS AND SCRIPTS
-editable_buttons();
-
-[bad_channels, reject_segments] = pp_vars(subject_index);
+config = config_fn(); % MAKE SURE TO INCLUDE THIS IN EVERY SCRIPT -> DETECT SUBFOLDER FUNCTIONS AND SCRIPTS
+dev_buttons();
 
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab;
 
 % file vars
-file_name = 'corrected_raw.set';
-file_dir = fullfile(cfg.dir.all_data, subject_index);
+file_dir = fullfile(config.dir.all_data, subject_index);
+eeg_file = 'corrected_raw.set';
+pp_vars_file = 'pp_vars';
 
-% load it
-EEG = pop_loadset('filename',file_name,'filepath',file_dir);
+% load eeg
+EEG = pop_loadset('filename',eeg_file,'filepath',file_dir);
 [ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0 );
 
-
-%% Resampling to 250 Hz
-
-EEG = pop_resample( EEG, 250);
+% resample to 500 Hz
+EEG = pop_resample( EEG, 500);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','resampled','gui','off'); 
 
-%% Add custom time chan
+% band filtering
+EEG = pop_eegfiltnew(EEG, 'locutoff',48,'hicutoff',52,'revfilt',1); % notch 48-52 Hz
+EEG = pop_eegfiltnew(EEG, 'locutoff',1,'hicutoff',98); % band pass 1-98 Hz 
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','band filtered','gui','off'); 
 
-tmp_EEG_chanlocs = EEG.chanlocs;
+eeglab redraw;
 
-[num_channels, num_timepoints] = size(EEG.data); % Get dimensions
+%% reject bad channels
 
-% init with all 0
-new_channel = zeros(1, num_timepoints);
+% NOTE:
+%
+% matlab does not allow you to manually edit workspace vars unless everything is
+% closed, re-running this session to proceed is required after updating bad channel
+% indices
 
-% fill in time data
-% [i] sample_margin = 200
-new_margin = 50; % = sample_margin x 0.25 (1000Hz -> 250Hz = ~ x 0.25)
-if num_timepoints >= new_margin % NOTE: margin x 0.25 is close to 3
-    new_channel(new_margin:end) = 4 * (0:(num_timepoints - new_margin));
+
+% try load pp_vars, init if fields don't exist
+try
+    load(fullfile(file_dir,pp_vars_file));
+catch
+    dis('info', 'pp_vars not found, initializing it the first time', 'n')
+end 
+
+if ~isfield(pp_vars, 'bad_channels')
+    pp_vars.bad_channels = {};
+end
+
+% ori_bad_chans, mod_bad_chans -> easy comparison and modification
+ori_bad_chans = string(pp_vars.bad_channels);
+if ~exist('mod_bad_chans','var') % don't replace manual inputs while re-running
+    mod_bad_chans = string(pp_vars.bad_channels);
+end
+open mod_bad_chans
+
+% ASK TO SAVE THE UPDATED pp_vars IF MODIFICATION IS DETECTED
+% --------------------------------------------------------
+if ~isequal(ori_bad_chans,mod_bad_chans) % ~strcmp(ori_bad_chans,mod_bad_chans) -> only compare string by string, not the entire var % 'isequal' -> compare sets
+    msg = sprintf('Save %s.bad_channels? (It will replace the old file!!!)',subject_index);
+    choice = questdlg(msg, ...
+        'Save pp_vars', ... % gui title
+        'Yes','No','Revert changes','Yes'); % the 2nd 'No' here is the default option, press enter to select this default
+    switch choice
+        case 'Yes' % yes saving
+            % test if can convert string back to cell and save
+            try
+                pp_vars.bad_channels = cellstr(mod_bad_chans);
+            catch
+                err('mod_bad_chans contain invalid values!', 'Change to proceed')
+            end
+            save(fullfile(file_dir,'pp_vars.mat'),'pp_vars');
+        
+        case 'No' % no saving
+            fprintf('\n[i] No Saving...\n')
+        case 'Revert changes'
+            mod_bad_chans = ori_bad_chans;
+    end
+end
+
+
+
+if ~all(cellfun(@isempty, pp_vars.bad_channels)) % if not empty
+    dis('info', ['Bad channels include: ', string(pp_vars.bad_channels)],'n')
+else
+    dis('info', 'No marked bad channels.','n')
+end
+
+
+% Ask to proceed / inspect
+proceed = false;
+if isempty(pp_vars.bad_channels)
+    proceed = true;
+else
+    msg = sprintf('Proceed to removing bad channels?');
+    choice = questdlg(msg, ...
+        'Confirm proceed', ... % gui title
+        'Yes','No (inspect)','No (exit)','Yes'); % the 2nd 'No' here is the default option, press enter to select this default
+    switch choice
+        case 'Yes'
+            proceed = true;
+        case 'No (inspect)'
+            proceed = false;
+        case 'No (exit)'
+            proceed = 'exit';
+    end
+end
+
+
+% Need to inspect
+if proceed == false % while no proceed (doesn't loop if proceed = 'exit')
+    
+    open mod_bad_chans
+    pop_eegplot( EEG, 1, 1, 1);
+
+    dis('act', 'Inspect bad channels','n');
+    dis('act', 'Update pp_vars.bad_channels before closing scroll window to save it')
+    
+
+    % STOP IF SCROLL WINDOW IS STILL OPEN
+    % --------------------------------------------------------
+    % AI-generated
+    while true
+        figs = findall(0, 'Type', 'figure');
+        found = false;
+        for i = 1:length(figs)
+            winName = get(figs(i), 'Name');
+            if strncmp(winName, 'Scroll channel activities', length('Scroll channel activities'))
+                waitfor(figs(i));
+                found = true;
+                break; % Exit for-loop and re-check in case window is reopened
+            end
+        end
+        if ~found
+            break; % No such window open, exit while-loop
+        end
+    end
+
+    
+    % ASK TO PROCEED TO REMOVE BAD CHANNELS
+    % --------------------------------------------------------
+    msg = sprintf('Proceed to removing bad channels?');
+    choice = questdlg(msg, ...
+        'Confirm proceed', ... % gui title
+        'Yes','Need to update bad channels / Exit','Yes'); % the 2nd 'No' here is the default option, press enter to select this default
+    switch choice
+        case 'Yes'
+            proceed = true;
+        case 'Need to update bad channels / Exit'
+            proceed = 'exit';
+    end
+end
+
+
+% yes proceed
+if proceed == true
+    % test if marked chan names are valid to be removed
+    try
+        % proceed to remove the bad channels, skip if no bad channels
+        if isfield(pp_vars, 'bad_channels') && ~all(cellfun(@isempty, pp_vars.bad_channels)) % if exist
+            EEG = pop_select( EEG, 'rmchannel',pp_vars.bad_channels);
+            [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','rej bad chans','gui','off');
+            eeglab redraw
+        else
+            dis('info', 'No marked bad channels, skipping...','n');
+        end
+    catch
+        err('Unable to remove channels!', 'Defined bad channels may have already been removed / does not exist')
+    end
+elseif ~proceed
+    dis('info', 'Not proceeding...', 'n');
+end
+
+%% re-reference (with CAR)
+
+EEG = pop_reref( EEG, []);
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 2,'setname','re-referenced','gui','off'); 
+
+
+%% channel interpolation - chan interpolated
+
+current_dataset_idx = CURRENTSET;
+
+% load ref dataset
+ref_dataset_file = 'chan_ref_only.set';
+EEG = pop_loadset('filename',ref_dataset_file,'filepath',config.dir.MATLAB);
+[ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0);
+ref_dataset_idx = CURRENTSET;
+chans = {EEG.chanlocs.labels};
+
+% go back to current original dataset
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, ref_dataset_idx,'retrieve',current_dataset_idx,'study',0);  %from -> to
+
+% find bad channels idx using ref dataset
+chans = {EEG.chanlocs.labels};
+bad_chans = pp_vars.bad_channels;
+[tf, bad_chans_idx] = ismember(bad_chans, chans);
+if ~all(tf) % emergency err handle
+    err('Somehow channels that need to be interpolated are not found in the ref dataset')
+end
+
+EEG = pop_interp(EEG, ALLEEG(ref_dataset_idx).chanlocs(bad_chans_idx), 'spherical');
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 4,'setname','chan interpolated','gui','off'); 
+eeglab redraw
+
+%% ICA
+
+EEG = pop_runica(EEG, 'icatype', 'runica', 'extended',1,'rndreset','yes','interrupt','on');
+[ALLEEG, EEG, CURRENTSET] = eeg_store(ALLEEG, EEG, CURRENTSET);
+
+dis('act', 'Now reject ICs, rmb better not to reject more than 4')
+dis('act', 'Noisy signals can be rejected manually afterwards')
+
+eeglab redraw
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+%% MODIFY Add custom time channel
+% CONTINUE
+
+temp_EEG_chanlocs = EEG.chanlocs; % temp save
+
+% find boundary latency values
+eventTypes = {EEG.event.type};
+boundaryIdx = find(strcmp(eventTypes, 'boundary'));
+boundaryLatencies = [EEG.event(boundaryIdx).latency];
+
+% find session periods (boundary are always in-between 2 Ms like 1000.5ms / 1.0005s)
+boundary_floor = floor(boundaryLatencies);
+boundary_ceil = ceil(boundaryLatencies);
+session_periods = [boundary_ceil(1:end-1); boundary_floor(2:end)]';
+
+% init time channel
+[chans, pnts] = size(EEG.data); % Basically EEG.nbchan and EEG.pnts
+time_channel = zeros(1, pnts);
+
+% fill in time channel values (increment by 4)
+% 1 4 9 ... (Ms)
+for s_idx = 1:size(session_periods,1) % no. of rows
+    start = session_periods(s_idx,1);
+    stop = session_periods(s_idx,2);
+    session_pnts = (stop - start) + 1;
+    time_channel(:,start:stop) = 1:4:(1+ 4*(session_pnts-1));
 end
 
 % Put it to EEG.data
-EEG.data = [EEG.data; new_channel];
+EEG.data = [EEG.data; time_channel];
 
-%%
 
-% --- Correct the workspace vars
+% CORRECTING WORKSPACE VARS
+%--------------------------------------------------------------------
+% add 'TIMEMS' chan name
 EEG.nbchan = EEG.nbchan + 1;
-EEG.chanlocs = tmp_EEG_chanlocs;
+EEG.chanlocs = temp_EEG_chanlocs;
 EEG.chanlocs(end+1).labels = 'TIMEMS';
 
-% % Does nothing
+% % XX Does nothing
 % EEG.chanlocs(end).type = '';
 % EEG.chanlocs(end).ref = '';
 
@@ -70,47 +295,12 @@ ALLEEG(end).nbchan = EEG.nbchan;
 
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','custom time chan','gui','off'); 
 
-%% band filtering - filtered
-
-% EEG = pop_eegfiltnew(EEG, 'locutoff',48,'hicutoff',52,'revfilt',1);
-% EEG = pop_eegfiltnew(EEG, 'locutoff',0.5);
-% EEG = pop_eegfiltnew(EEG, 0.5, 45, [], 0, [], 0, [], 4, 'design', 'butter');
-
-EEG = pop_eegfiltnew(EEG, 'locutoff',1,'hicutoff',45); % simple 1-45 Hz band pass
-
-[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','frq band filtered','gui','off'); 
 
 
-%% reject bad channels - bad chans
+%% MODIFY manually reject segments - reject segments
 
 % CONT
 
-try
-    % found and get bad channels
-    vars;
-    temp = ['bad_channels_' subject_ID];
-    bad_channels = param.(temp);
-    % reject bad channels
-    EEG = pop_select( EEG, 'rmchannel',bad_channels);
-    [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','rej bad chans','gui','off'); 
-    try
-        temp = ['bad_channels_no_interp_' subject_ID];
-        bad_channels_no_interp = param.(temp);
-        % reject bad channels without interpolation
-        EEG = pop_select( EEG, 'rmchannel',bad_channels_no_interp);
-        [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','rej bad chans (without interp)','gui','off'); 
-    catch
-    end
-
-catch
-    % bad channels were not defined in the past
-    pop_eegplot( EEG, 1, 1, 1);
-    open vars.m
-    fprintf("\n##### Re-run this right after\n")
-end
-
-
-%% manually reject segments - reject segments
 
 try
     % found and get bad channels
@@ -128,7 +318,8 @@ catch
     fprintf("\n##### no need re-running. type 'eegh' and put rejected segments in var\n")
 end
 
-%% refill back rejected markers (within rejected segments earlier)
+
+%% MODIFY refill back rejected markers (within rejected segments earlier)
 % TODO: if more than 1 marker are rejected in the same boundary segment,
 % add back all of them. 
 
@@ -189,63 +380,3 @@ for i = 1:length(missing_markers)
     end
 end
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','refill rej markers (if any)','gui','off'); 
-
-%% ICA
-
-EEG = pop_runica(EEG, 'icatype', 'runica', 'extended',1,'rndreset','yes','interrupt','on');
-[ALLEEG, EEG, CURRENTSET] = eeg_store(ALLEEG, EEG, CURRENTSET);
-eeglab redraw
-
-fprintf("\n##### Then, try plotting ADJUST, then normal one")
-fprintf("\n##### Manually proceed by rejecting selected ICs")
-
-%% channel interpolation - chan interpolated
-
-
-temp = ['bad_channels_' subject_ID];
-bad_channels = param.(temp);
-bad_channels = strjoin(bad_channels, ' ');
-
-% load channel location reference set for EEGLAB
-% it requires a direct dataset for reference
-current_set_idx = CURRENTSET;
-EEG = pop_loadset('filename','chan_loc_only_ref.set','filepath',dir.scripts);
-[ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0 );
-ref_set_idx = CURRENTSET;
-
-% jump back to current set after loading the reference set
-[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, ref_set_idx,'retrieve',current_set_idx,'study',0);
-
-eeglab redraw;
-% do manually cuz order might be different each time
-fprintf("\n##### Click 'Use specific channels of other dataset'");
-fprintf("\n##### %i -> Dataset Index", ref_set_idx);
-fprintf("\n##### %s -> Channels to be interpolated\n", bad_channels);
-
-% x ARCHIVE
-
-% % get bad channels indices 
-% temp = ['bad_channels_' subject_ID];
-% bad_channels = param.(temp);
-% bad_channels_idx = find(ismember(used_channels, bad_channels));
-% 
-% % load channel location reference set for EEGLAB
-% % it requires a direct dataset for reference
-% current_set_idx = CURRENTSET;
-% EEG = pop_loadset('filename','chan_loc_only_ref.set','filepath',dir.scripts);
-% [ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0 );
-% ref_set_idx = CURRENTSET;
-% 
-% % jump back to current set after loading the reference set
-% [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, ref_set_idx,'retrieve',current_set_idx,'study',0);
-% 
-% % interpolate chans
-% EEG = pop_interp(EEG, ALLEEG(ref_set_idx).chanlocs(bad_channels_idx), 'spherical');
-% [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 2,'gui','off'); 
-
-%% Re-referencing
-
-EEG = pop_reref( EEG, []);
-[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','re-referenced','gui','off'); 
-
-fprintf("\n!!!!! save dataset -> preprocessed\n")

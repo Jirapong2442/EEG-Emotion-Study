@@ -1,0 +1,641 @@
+import cv2
+import numpy as np
+import subprocess
+import os
+try:
+    import tkinter as tk
+    from tkinter import filedialog
+    HAS_TK = True
+except ImportError:
+    HAS_TK = False
+
+# Root paths (relative to this script)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Video file paths - will be populated by file selection
+VIDEOS = [None, None]  # [eeg_video, face_video]
+
+def select_video_file(title, file_types):
+    """Open a file dialog to select a video file"""
+    if HAS_TK:
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
+        # Make the dialog stay on top
+        root.attributes('-topmost', True)
+        file_path = filedialog.askopenfilename(
+            title=title,
+            filetypes=file_types
+        )
+        root.destroy()
+        return file_path
+    else:
+        # Fallback to command line input
+        print(title)
+        file_path = input("Enter the full path to the video file: ").strip()
+        return file_path if os.path.exists(file_path) else None
+
+def time_to_seconds(time_str):
+    """Convert time string (HH:MM:SS) to total seconds"""
+    parts = list(map(int, time_str.split(':')))
+    if len(parts) == 3:
+        hours, minutes, seconds = parts
+        return hours * 3600 + minutes * 60 + seconds
+    elif len(parts) == 2:
+        minutes, seconds = parts
+        return minutes * 60 + seconds
+    else:
+        return parts[0]
+
+def seconds_to_time(total_seconds):
+    """Convert total seconds to time string (HH:MM:SS)"""
+    hours = int(total_seconds // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+    seconds = int(total_seconds % 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+def select_two_videos():
+    """Prompt user to select two video files: EEG video (top-left) and face video (top-right)"""
+    global VIDEOS
+    
+    print("\nSelecting video files...")
+    
+    # Common video file types
+    video_types = [
+        ('Video files', '*.mp4 *.avi *.mov *.mkv *.wmv *.flv *.webm'),
+        ('MP4 files', '*.mp4'),
+        ('MOV files', '*.mov'),
+        ('AVI files', '*.avi'),
+        ('MKV files', '*.mkv'),
+        ('All files', '*.*')
+    ]
+    
+    # Select EEG video (top-left)
+    print("Please select the EEG video file (will appear in top-left position)...")
+    eeg_video = select_video_file("Select EEG Video File", video_types)
+    if not eeg_video or not os.path.exists(eeg_video):
+        print("EEG video file not selected or not found. Exiting.")
+        return False
+    
+    # Select face video (top-right)
+    print("Please select the face video file (will appear in top-right position)...")
+    face_video = select_video_file("Select Face Video File", video_types)
+    if not face_video or not os.path.exists(face_video):
+        print("Face video file not selected or not found. Exiting.")
+        return False
+    
+    # Store in order: eeg first, face second
+    VIDEOS = [eeg_video, face_video]
+    
+    print("\nSelected videos:")
+    print(f"  VIDEO 1 (EEG - top-left): {VIDEOS[0]}")
+    print(f"  VIDEO 2 (Face - top-right): {VIDEOS[1]}")
+    
+    # Determine output directory (same as first video)
+    output_dir = os.path.dirname(VIDEOS[0])
+    print(f"Outputs will be saved to: {output_dir}")
+    
+    return True
+
+def play_video_for_sync(video_path, video_number):
+    """Play video and get sync point from user"""
+    cap = cv2.VideoCapture(video_path)
+    
+    if not cap.isOpened():
+        print(f"Error: Could not open video file: {video_path}")
+        return None
+    
+    # Get video properties
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration = total_frames / fps if fps > 0 else 0
+    
+    print(f"\n=== Playing: {os.path.basename(video_path)} ===")
+    print(f"Video FPS: {fps:.2f}")
+    print(f"Total frames: {total_frames}")
+    print(f"Duration: {duration:.2f} seconds")
+    print("Controls: 'q' to quit, SPACEBAR to pause/resume, ','/'.' for frame-by-frame, 'j'/'l' for 10s skip, 'h'/';' for 30s skip, ENTER to set sync point")
+    
+    paused = False
+    current_frame = 0
+    video_ended = False
+    manually_paused = False
+
+    while cap.isOpened():
+        if not paused and not video_ended:
+            ret, frame = cap.read()
+            if not ret:
+                video_ended = True
+                print("Video ended - staying at last frame")
+                # Stay at the last frame
+                cap.set(cv2.CAP_PROP_POS_FRAMES, total_frames - 1)
+                ret, frame = cap.read()
+            else:
+                current_frame += 1
+        
+        if ret:
+            cv2.imshow('Video', frame)
+            
+            # Check for key presses
+            key = cv2.waitKey(25) & 0xFF
+            if key == ord('q'):  # Press 'q' to quit
+                cap.release()
+                cv2.destroyAllWindows()
+                return None
+            elif key == ord(' '):  # Press SPACEBAR to pause/resume
+                paused = not paused
+                manually_paused = paused
+                print("Paused" if paused else "Resumed")
+                # If resuming and not at the last frame, clear video_ended flag
+                if not paused and current_frame < total_frames - 1:
+                    video_ended = False
+            elif key == 13:  # Press ENTER to set sync point
+                print(f"ENTER pressed at frame {current_frame}")
+                cap.release()
+                cv2.destroyAllWindows()
+                # For face video second playback (timer start frame), no time input needed
+                if video_number == 3:
+                    return {'video': video_number, 'frame': current_frame}
+                else:
+                    try:
+                        # Get time input from user
+                        print("Getting user input...")
+                        time_input = input(f"Enter time for current frame {current_frame} (HH:MM:SS format, e.g., 0:02:01). Enter 0 for 00:00:00: ").strip()
+                        if time_input == '0':
+                            time_input = '00:00:00'
+                        print(f"User entered: {time_input}")
+                        return {'video': video_number, 'frame': current_frame, 'time': time_input}
+                    except Exception as e:
+                        print(f"Error getting input: {e}")
+                        return None
+            elif key == ord(','):  # Press ',' to go back one frame
+                if current_frame > 0:
+                    current_frame -= 1
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
+                    ret, frame = cap.read()
+                    if ret:
+                        cv2.imshow('Video', frame)
+                    print(f"Frame: {current_frame}")
+                    # If video had ended and we're not at last frame, resume playing (unless manually paused)
+                    if video_ended and current_frame < total_frames - 1 and not manually_paused:
+                        video_ended = False
+                        paused = False
+                        print("Resumed playing")
+            elif key == ord('.'):  # Press '.' to go forward one frame
+                if current_frame < total_frames - 1:
+                    current_frame += 1
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
+                    ret, frame = cap.read()
+                    if ret:
+                        cv2.imshow('Video', frame)
+                    print(f"Frame: {current_frame}")
+                    # If video had ended and we're not at last frame, resume playing (unless manually paused)
+                    if video_ended and current_frame < total_frames - 1 and not manually_paused:
+                        video_ended = False
+                        paused = False
+                        print("Resumed playing")
+            elif key == ord('j'):  # Press 'j' to skip 10 seconds back
+                frames_to_skip = int(10 * fps)
+                new_frame = max(0, current_frame - frames_to_skip)
+                current_frame = new_frame
+                cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
+                ret, frame = cap.read()
+                if ret:
+                    cv2.imshow('Video', frame)
+                print(f"Skipped 10s back to frame: {current_frame}")
+                # If video had ended and we're not at last frame, resume playing (unless manually paused)
+                if video_ended and current_frame < total_frames - 1 and not manually_paused:
+                    video_ended = False
+                    paused = False
+                    print("Resumed playing")
+            elif key == ord('l'):  # Press 'l' to skip 10 seconds forward
+                frames_to_skip = int(10 * fps)
+                new_frame = min(total_frames - 1, current_frame + frames_to_skip)
+                current_frame = new_frame
+                cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
+                ret, frame = cap.read()
+                if ret:
+                    cv2.imshow('Video', frame)
+                print(f"Skipped 10s forward to frame: {current_frame}")
+                # If video had ended and we're not at last frame, resume playing (unless manually paused)
+                if video_ended and current_frame < total_frames - 1 and not manually_paused:
+                    video_ended = False
+                    paused = False
+                    print("Resumed playing")
+            elif key == ord('h'):  # Press 'h' to skip 30 seconds back
+                frames_to_skip = int(30 * fps)
+                new_frame = max(0, current_frame - frames_to_skip)
+                current_frame = new_frame
+                cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
+                ret, frame = cap.read()
+                if ret:
+                    cv2.imshow('Video', frame)
+                print(f"Skipped 30s back to frame: {current_frame}")
+                # If video had ended and we're not at last frame, resume playing (unless manually paused)
+                if video_ended and current_frame < total_frames - 1 and not manually_paused:
+                    video_ended = False
+                    paused = False
+                    print("Resumed playing")
+            elif key == ord(';'):  # Press ';' to skip 30 seconds forward
+                frames_to_skip = int(30 * fps)
+                new_frame = min(total_frames - 1, current_frame + frames_to_skip)
+                current_frame = new_frame
+                cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
+                ret, frame = cap.read()
+                if ret:
+                    cv2.imshow('Video', frame)
+                print(f"Skipped 30s forward to frame: {current_frame}")
+                # If video had ended and we're not at last frame, resume playing (unless manually paused)
+                if video_ended and current_frame < total_frames - 1 and not manually_paused:
+                    video_ended = False
+                    paused = False
+                    print("Resumed playing")
+        else:
+            break
+    
+    cap.release()
+    cv2.destroyAllWindows()
+    return None
+
+def get_sync_points():
+    """Get synchronization points by playing videos"""
+    sync_points = []
+    
+    print("\n" + "="*60)
+    print("SYNCHRONIZATION SETUP")
+    print("="*60)
+    print("You will watch each video and set sync points.")
+    print("Navigate to the frame you want, then press ENTER and enter the time.")
+    print("="*60)
+    
+    # Play video 1 and get sync point
+    video1_name = os.path.basename(VIDEOS[0])
+    print(f"\n--- VIDEO 1 ({video1_name}) ---")
+    print("Navigate to the frame you want to sync, then press ENTER")
+    sync_point1 = play_video_for_sync(VIDEOS[0], 1)
+    if sync_point1 is None:
+        print("No sync point set for video 1. Exiting.")
+        return None
+    
+    # Play video 2 and get sync point
+    video2_name = os.path.basename(VIDEOS[1])
+    print(f"\n--- VIDEO 2 ({video2_name}) ---")
+    print("Navigate to the frame you want to sync, then press ENTER")
+    sync_point2 = play_video_for_sync(VIDEOS[1], 2)
+    if sync_point2 is None:
+        print("No sync point set for video 2. Exiting.")
+        return None
+    
+    # Play face video (video 2) again to select timer start frame
+    print(f"\n--- FACE VIDEO TIMER START FRAME ({video2_name}) ---")
+    print("Navigate to the frame where you want the timer to start, then press ENTER")
+    timer_start_frame_data = play_video_for_sync(VIDEOS[1], 3)  # Use video_number=3 to indicate this is for timer
+    timer_start_frame = timer_start_frame_data['frame'] if timer_start_frame_data else 0
+    if timer_start_frame_data is None:
+        print("No timer start frame set for face video. Timer will start from beginning.")
+        timer_start_frame = 0
+    else:
+        print(f"Timer will start when face video reaches frame: {timer_start_frame}")
+    
+    sync_points = [sync_point1, sync_point2]
+    
+    print(f"\nSync points recorded:")
+    print(f"Video 1: Frame {sync_point1['frame']} = {sync_point1['time']}")
+    print(f"Video 2: Frame {sync_point2['frame']} = {sync_point2['time']}")
+    print(f"Timer start frame: {timer_start_frame}")
+    
+    return sync_points, timer_start_frame
+
+def calculate_alignment_params(sync_points, fps1, fps2, total_frames1, total_frames2):
+    """Compute timeline alignment using selected frames and entered times.
+    For each video i:
+      index_i(t) = base_i + t * fps_i, where base_i = f_i - t_i * fps_i
+    We choose a timeline [t_start, t_end] that covers when either video has valid frames.
+    """
+    # Extract
+    f1 = sync_points[0]['frame']
+    t1 = time_to_seconds(sync_points[0]['time'])
+    f2 = sync_points[1]['frame']
+    t2 = time_to_seconds(sync_points[1]['time'])
+
+    # Bases so that at real time t, the frame index is base + t*fps
+    base1 = f1 - t1 * fps1
+    base2 = f2 - t2 * fps2
+
+    # For each video, find t range where indices are within bounds [0, total-1]
+    # Solve: 0 <= base + t*fps <= total-1
+    # t >= (-base)/fps and t <= (total-1 - base)/fps
+    t1_min = (-base1) / fps1
+    t1_max = (total_frames1 - 1 - base1) / fps1
+    t2_min = (-base2) / fps2
+    t2_max = (total_frames2 - 1 - base2) / fps2
+
+    # Overall timeline start/end (include any overlap or gaps -> black frames handled automatically)
+    t_start = min(t1_min, t2_min)
+    t_end = max(t1_max, t2_max)
+
+    return {
+        'base1': base1,
+        'base2': base2,
+        't_start': t_start,
+        't_end': t_end,
+        't1': t1,
+        't2': t2,
+        'f1': f1,
+        'f2': f2,
+    }
+
+def create_synchronized_dashboard(sync_points, timer_start_frame=0):
+    """Create synchronized dashboard video"""
+    
+    # Check if CUDA is available for GPU acceleration
+    use_gpu = False
+    try:
+        if cv2.cuda.getCudaEnabledDeviceCount() > 0:
+            use_gpu = True
+            print("GPU acceleration enabled")
+        else:
+            print("CUDA not available, using CPU")
+    except AttributeError:
+        print("OpenCV built without CUDA support, using CPU")
+    
+    # Open both video files
+    if use_gpu:
+        # Try to use GPU accelerated video reader
+        try:
+            cap1 = cv2.cudacodec.createVideoReader(VIDEOS[0])
+            cap2 = cv2.cudacodec.createVideoReader(VIDEOS[1])
+        except AttributeError:
+            # Fallback to CPU if GPU video reader not available
+            cap1 = cv2.VideoCapture(VIDEOS[0])
+            cap2 = cv2.VideoCapture(VIDEOS[1])
+    else:
+        cap1 = cv2.VideoCapture(VIDEOS[0])
+        cap2 = cv2.VideoCapture(VIDEOS[1])
+
+    if not cap1.isOpened() or not cap2.isOpened():
+        print("Error: Could not open one or both video files.")
+        return
+
+    # Get video properties
+    fps1 = cap1.get(cv2.CAP_PROP_FPS)
+    fps2 = cap2.get(cv2.CAP_PROP_FPS)
+    total_frames1 = int(cap1.get(cv2.CAP_PROP_FRAME_COUNT))
+    total_frames2 = int(cap2.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    print(f"\nVideo 1: {fps1:.2f} FPS, {total_frames1} frames")
+    print(f"Video 2: {fps2:.2f} FPS, {total_frames2} frames")
+
+    # Compute alignment based on selected frames and entered times
+    align = calculate_alignment_params(sync_points, fps1, fps2, total_frames1, total_frames2)
+    base1 = align['base1']
+    base2 = align['base2']
+    t_start = align['t_start']
+    t_end = align['t_end']
+
+    # Use the higher FPS for output
+    output_fps = max(fps1, fps2)
+
+    # Get frame dimensions
+    ret1, frame1 = cap1.read()
+    ret2, frame2 = cap2.read()
+
+    if not ret1 or not ret2:
+        print("Error: Could not read frames from videos.")
+        return
+
+    h1, w1 = frame1.shape[:2]
+    h2, w2 = frame2.shape[:2]
+
+    # Calculate dashboard dimensions
+    dashboard_width = max(w1, w2) * 2
+    dashboard_height = max(h1, h2) * 2
+    quadrant_width = dashboard_width // 2
+    quadrant_height = dashboard_height // 2
+
+    print(f"\nDashboard size: {dashboard_width}x{dashboard_height}")
+    print(f"Creating synchronized dashboard...")
+
+    # Set up video writer
+    # Use a more efficient codec if available
+    fourcc = cv2.VideoWriter_fourcc(*'avc1')  # H.264 codec
+    if fourcc == -1:
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Fallback to MP4V
+    
+    # Determine output directory (same as first video)
+    output_dir = os.path.dirname(VIDEOS[0]) if VIDEOS[0] else BASE_DIR
+    video_output_path = os.path.join(output_dir, 'sync_dashboard_temp.mp4')
+    
+    # Create video writer with larger buffer
+    out = cv2.VideoWriter(video_output_path, fourcc, output_fps, (dashboard_width, dashboard_height))
+
+    # Reset video positions
+    cap1.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    cap2.set(cv2.CAP_PROP_POS_FRAMES, 0)
+
+    # Build timeline in seconds -> iterate in output frame steps
+    duration_s = max(0.0, t_end - t_start)
+    total_timeline_frames = int(duration_s * output_fps) + 1
+    
+    print(f"Timeline seconds: {duration_s:.3f}s, frames: {total_timeline_frames}")
+    
+    frame_count = 0
+    
+    # Pre-calculate some values for optimization
+    inv_output_fps = 1.0 / output_fps
+    base1_fps1 = base1 * fps1
+    base2_fps2 = base2 * fps2
+    fps1_sq = fps1 * fps1
+    fps2_sq = fps2 * fps2
+    
+    while frame_count < total_timeline_frames:
+        # Time at this output frame
+        t = t_start + (frame_count * inv_output_fps)
+        
+        # Compute source indices at time t
+        # index = base + t * fps
+        idx1 = int(round(base1 + t * fps1))
+        idx2 = int(round(base2 + t * fps2))
+        
+        # Create black dashboard frame
+        dashboard = np.zeros((dashboard_height, dashboard_width, 3), dtype=np.uint8)
+        
+        # Read and place frames when in range
+        if 0 <= idx1 < total_frames1:
+            cap1.set(cv2.CAP_PROP_POS_FRAMES, idx1)
+            r1, f1_img = cap1.read()
+            if r1:
+                # Use GPU for resizing if available
+                if use_gpu:
+                    try:
+                        gpu_frame = cv2.cuda_GpuMat()
+                        gpu_frame.upload(f1_img)
+                        gpu_resized = cv2.cuda.resize(gpu_frame, (quadrant_width, quadrant_height))
+                        f1_resized = gpu_resized.download()
+                    except:
+                        # Fallback to CPU resize
+                        f1_resized = cv2.resize(f1_img, (quadrant_width, quadrant_height))
+                else:
+                    f1_resized = cv2.resize(f1_img, (quadrant_width, quadrant_height))
+                dashboard[0:quadrant_height, 0:quadrant_width] = f1_resized
+                video1_name = os.path.basename(VIDEOS[0])
+                cv2.putText(dashboard, f"EEG VIDEO ({video1_name})", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        
+        if 0 <= idx2 < total_frames2:
+            cap2.set(cv2.CAP_PROP_POS_FRAMES, idx2)
+            r2, f2_img = cap2.read()
+            if r2:
+                # Use GPU for resizing if available
+                if use_gpu:
+                    try:
+                        gpu_frame = cv2.cuda_GpuMat()
+                        gpu_frame.upload(f2_img)
+                        gpu_resized = cv2.cuda.resize(gpu_frame, (quadrant_width, quadrant_height))
+                        f2_resized = gpu_resized.download()
+                    except:
+                        # Fallback to CPU resize
+                        f2_resized = cv2.resize(f2_img, (quadrant_width, quadrant_height))
+                else:
+                    f2_resized = cv2.resize(f2_img, (quadrant_width, quadrant_height))
+                dashboard[0:quadrant_height, quadrant_width:quadrant_width*2] = f2_resized
+                video2_name = os.path.basename(VIDEOS[1])
+                cv2.putText(dashboard, f"FACE VIDEO ({video2_name})", (quadrant_width + 10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        
+        # Add timer display at the center of the bottom half (black area) if face video has reached the timer start frame
+        if idx2 >= timer_start_frame and idx2 < total_frames2:
+            # Calculate elapsed time since timer start frame
+            elapsed_frames = idx2 - timer_start_frame
+            elapsed_time = elapsed_frames / fps2
+            
+            # Format time as SS.XXX
+            time_text = f"{elapsed_time:.3f}s"
+            
+            # Position at center of bottom half (black area)
+            # Bottom half starts at quadrant_height and ends at dashboard_height
+            font_scale = 3  # 3 times larger
+            thickness = 6   # Scale thickness proportionally
+            text_size = cv2.getTextSize(time_text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)[0]
+            text_x = (dashboard_width - text_size[0]) // 2
+            text_y = quadrant_height + (dashboard_height - quadrant_height) // 2 + text_size[1] // 2
+            
+            # Draw black rectangle behind text for better visibility
+            cv2.rectangle(dashboard, (text_x - 20, text_y - text_size[1] - 20),
+                         (text_x + text_size[0] + 20, text_y + 20), (0, 0, 0), -1)
+            
+            # Draw timer text
+            cv2.putText(dashboard, time_text, (text_x, text_y),
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness)
+        
+        # Write frame
+        out.write(dashboard)
+        frame_count += 1
+        
+        # Progress - reduce frequency of progress updates for better performance
+        if frame_count % 100 == 0:  # Changed from 30 to 100
+            progress = (frame_count / total_timeline_frames) * 100
+            print(f"Progress: {progress:.1f}% ({frame_count}/{total_timeline_frames})")
+
+    # Clean up
+    cap1.release()
+    cap2.release()
+    out.release()
+    cv2.destroyAllWindows()
+
+    print(f"\nSynchronized video processing completed!")
+    print(f"Total frames processed: {total_timeline_frames}")
+    print(f"Video 1: Processed frames 0-{total_frames1-1} (duration: {total_frames1/fps1:.2f}s)")
+    print(f"Video 2: Processed frames 0-{total_frames2-1} (duration: {total_frames2/fps2:.2f}s)")
+
+    # Add audio using FFmpeg (align starts roughly to t_start)
+    print("\nAdding synchronized audio...")
+
+    final_output = os.path.join(output_dir, 'sync_dashboard_output.mp4')
+
+    # Real times when each video's frame 0 occurs relative to alignment
+    # Solve 0 = base + t0*fps  =>  t0 = -base/fps
+    t0_v1 = -base1 / fps1
+    t0_v2 = -base2 / fps2
+
+    # We want timeline to start at t_start. Delay each audio so that its t0 aligns to the same timeline.
+    # Needed delay (ms) = max(0, (t0 - t_start))*1000; If negative, need trim by -(...)
+    delay1 = (t0_v1 - t_start) * 1000.0
+    delay2 = (t0_v2 - t_start) * 1000.0
+
+    def adelay_or_atrim_ms(ms, label_in, label_out):
+        if ms >= 0:
+            v = int(round(ms))
+            return f"[{label_in}]adelay={v}|{v}[{label_out}]"
+        else:
+            # trim start by -ms milliseconds
+            s = max(0.0, -ms/1000.0)
+            return f"[{label_in}]atrim=start={s}[{label_out}]"
+
+    filter_parts = [
+        adelay_or_atrim_ms(delay1, '1:a', 'a1'),
+        adelay_or_atrim_ms(delay2, '2:a', 'a2'),
+        '[a1]volume=0.5[a1v]',
+        '[a2]volume=0.5[a2v]',
+        '[a1v][a2v]amix=inputs=2:duration=longest:dropout_transition=0[audio]'
+    ]
+    filter_complex = ';'.join(filter_parts)
+
+    ffmpeg_cmd = [
+        'ffmpeg', '-y',
+        '-i', video_output_path,
+        '-i', VIDEOS[0],
+        '-i', VIDEOS[1],
+        '-filter_complex', filter_complex,
+        '-map', '0:v',
+        '-map', '[audio]',
+        '-c:v', 'copy',
+        '-c:a', 'aac',
+        '-shortest',
+        final_output
+    ]
+
+    try:
+        print("Running FFmpeg to add synchronized audio...")
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f"✅ Synchronized dashboard created successfully!")
+            print(f"Output file: {final_output}")
+            if os.path.exists(video_output_path):
+                os.remove(video_output_path)
+                print("Temporary video file removed.")
+        else:
+            print("❌ Error adding audio with FFmpeg:")
+            print(result.stderr)
+            print(f"Video without audio saved as: {video_output_path}")
+    except FileNotFoundError:
+        print("❌ FFmpeg not found. Please install FFmpeg to add audio.")
+        print(f"Video without audio saved as: {video_output_path}")
+    except Exception as e:
+        print(f"❌ Error running FFmpeg: {e}")
+        print(f"Video without audio saved as: {video_output_path}")
+
+def main():
+    print("="*60)
+    print("SYNCHRONIZED VIDEO DASHBOARD CREATOR")
+    print("="*60)
+    
+    # Ask user to select two video files directly
+    print("\nSelect two video files for synchronization...")
+    if not select_two_videos():
+        return
+
+    # Get synchronization points from user
+    sync_points, timer_start_frame = get_sync_points()
+    
+    # Check if sync points were collected successfully
+    if not sync_points or len(sync_points) < 2:
+        print("Failed to collect sync points. Exiting.")
+        return
+    
+    # Create synchronized dashboard
+    create_synchronized_dashboard(sync_points, timer_start_frame)
+    
+    print("\n" + "="*60)
+    print("PROCESS COMPLETED!")
+    print("="*60)
+
+if __name__ == "__main__":
+    main()

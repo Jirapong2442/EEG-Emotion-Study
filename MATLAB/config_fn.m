@@ -1,20 +1,22 @@
-function cfg = config()
+function config = config_fn()
     % ---------------------- FILES AND DIRECTORIES ----------------------------
     
-    % CHANGE
-    cfg.dir.root = 'C:\Users\RaymondTeam\Desktop\EEE';
+    %% CHANGE
+    config.dir.root = 'C:\Users\RaymondTeam\Desktop\EEE';
     
-    cfg.dir.all_data = fullfile(cfg.dir.root, 'ALL_DATA');
-    cfg.dir.git = fullfile(cfg.dir.root, 'EEG-Emotion-Study');
+    % XX config.dir.all_data = fullfile(config.dir.root, 'ALL_DATA');
+    config.dir.all_data = 'D:\EEE\ALL_DATA';
+    
 
-    cfg.dir.MATLAB = fullfile(cfg.dir.git, 'MATLAB');
+    config.dir.git = fullfile(config.dir.root, 'EEG-Emotion-Study');
+    config.dir.MATLAB = fullfile(config.dir.git, 'MATLAB');
     
-    addpath(genpath(cfg.dir.root)) % Add with all subfolders
+    addpath(genpath(config.dir.root)) % Add with all subfolders
     % savepath; % save for next session too
     
-
+    %%
     % ------------------------------- EEG -------------------------------------
-    cfg.used_channels = { ...
+    config.used_channels = { ...
     'FP1', 'FP2', ...
     'AF7', 'AF3', 'AFZ', 'AF4', 'AF8', ...
     'F7', 'F5', 'F3', 'F1', 'FZ', 'F2', 'F4', 'F6', 'F8', ...
@@ -34,7 +36,7 @@ function cfg = config()
     % -------------------------- EEG others -----------------------------------
     
     % Just to show devs how to rename the markers
-    cfg.marker_names = "gb1, gb2, pb1, pb2, g1, g2, ... p1, p2, ...";
+    config.marker_names = "gb1, gb2, pb1, pb2, g1, g2, ... p1, p2, ...";
     
     fprintf('## config.m loaded\n');
 end

@@ -129,7 +129,7 @@ def extract_sam1_values(file_path, lines):
     csv_data = []
     
     # Header row
-    csv_data.append(['', 'Valence', 'Arousal', 'Sleepy'])
+    csv_data.append(['Session', 'Valence', 'Arousal', 'Awake'])
     
     # Data rows - map Start->first index, Next->second & third indices, End->fourth index
     # Index 0: Start values
@@ -224,7 +224,7 @@ def extract_sam2_values(file_path, lines):
     csv_data = []
     
     # Header row
-    csv_data.append(['', 'Dominating', 'Valence', 'Arousal', 'Interest', 'Immersion', 'Visual', 'Auditory'])
+    csv_data.append(['Session', 'Dominating', 'Valence', 'Arousal', 'Interest', 'Immersion', 'Visual', 'Auditory'])
     
     # Data rows
     for i, row_data in enumerate(valid_rows):

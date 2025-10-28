@@ -1,10 +1,11 @@
-function [bad_channels, reject_segments] = pp_vars(index)
+function pp_vars = load_pp_vars(index)
 
-    index = char(lower(index)); 
     switch index
-        case 'g2p_1'
+        case 'G2P_1'
             bad_channels = {1};
             reject_segments = [1];
+        otherwise
+            fprintf('')
     end
 
     fprintf('## pp_vars.m loaded\n');
