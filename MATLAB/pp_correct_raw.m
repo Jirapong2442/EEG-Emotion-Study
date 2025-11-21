@@ -9,13 +9,11 @@ dis('act', 'Import Curry EEG data / raw.set','n')
 %% Load video csv  >>  manually see which marker is real ones 
 
 % LOAD VIDEO DURATION CSV
-% ---------------------------------------------------------------
 [file, dir] = uigetfile('*.csv'); % only show csv
 cd(dir);
 pv = readtable(file);
 
 % CSV -> TABLE OF ALL SESSION DURATIONS
-% ---------------------------------------------------------------
 % remove unused 'var1' column
 pv = removevars(pv, "Var1");
 
@@ -44,11 +42,13 @@ pb2 = table({'pb2'},180000,'VariableNames',{'video', 'duration_ms_'});
 % classify experiment group g2p / p2g
 group = upper(file(1:3));
 
+% Make the final table
 if strcmp(group,'G2P')
-    video_durations = [gb1;gv;gb2; pb1;pv;pb2];
+    session_durations = [gb1;gv;gb2; pb1;pv;pb2];
 elseif strcmp(group,'P2G')
-    video_durations = [pb1;pv;pb2; gb1;gv;gb2];
+    session_durations = [pb1;pv;pb2; gb1;gv;gb2];
 end
+session_durations = renamevars(session_durations, 'duration_ms_','durationInMs');
 
 
 % COPY EEG.EVENT and ADD COLUMN 'KEEP' 'calDuration' 'refDuration'
@@ -68,14 +68,14 @@ calDurations = num2cell(calDurations);
 [modify_this_EEG_event.calDuration] = calDurations{:};
 
 % add 'refDurations' field
-duration = video_durations.duration_ms_;
-for i = 1:size(video_durations,1)
+duration = session_durations.durationInMs;
+for i = 1:size(session_durations,1)
     modify_this_EEG_event(i).refDuration = duration(i);
 end
 
 open modify_this_EEG_event
 dis('act', "Keep markers by setting 'keep' to 1 for corresponding rows then proceed", 'n')
-video_rows = size(video_durations,1);
+video_rows = size(session_durations,1);
 dis('act', ['No. of markers to be kept = ', string(video_rows)])
 
 
@@ -85,7 +85,7 @@ dis('act', ['No. of markers to be kept = ', string(video_rows)])
 % -------------------------------------------------------------------------
 check_EEG_event = modify_this_EEG_event;
 
-video_rows = size(video_durations,1);
+video_rows = size(session_durations,1);
 keep_rows = sum([check_EEG_event.keep]==1);
 
 if keep_rows == video_rows
@@ -111,22 +111,6 @@ for i = 1:numel(check_EEG_event)
     check_EEG_event(i).urevent = i;
 end
 
-
-% % XX add new 'durationInMs' field
-% for i = 1:length(check_EEG_event)
-%     check_EEG_event(i).durationInMs = 0;
-% end
-% % XX check_EEG_event = orderfields(check_EEG_event, [1:2,4,3]);
-
-% % XX fill in everything
-% label = video_durations.video;
-% duration = video_durations.duration_ms_;
-% for i = 1:length({check_EEG_event.type})
-%     check_EEG_event(i).type = label(i);
-%     check_EEG_event(i).durationInMs = duration(i);
-% end
-
-
 % refill 'calDurations' field
 calDurations = diff([check_EEG_event.latency]);
 calDurations = [calDurations 0]; % no next one for last label
@@ -134,9 +118,9 @@ calDurations = num2cell(calDurations);
 [check_EEG_event.calDuration] = calDurations{:};
 
 % add 'type' and refill 'refDurations' field
-duration = video_durations.duration_ms_;
-label = video_durations.video;
-for i = 1:size(video_durations,1)
+duration = session_durations.durationInMs;
+label = session_durations.video;
+for i = 1:size(session_durations,1)
     check_EEG_event(i).type = char(label(i));
     check_EEG_event(i).refDuration = duration(i);
 end
@@ -188,7 +172,7 @@ open check_EEG_event
 
 final_EEG_event = check_EEG_event;
 
-% add 'finalDuration' field
+% add 'finalDuration' and 'idx' field
 for i = 1:length(final_EEG_event)
     continueVal = final_EEG_event(i).continue;
     if continueVal == 1
@@ -199,6 +183,8 @@ for i = 1:length(final_EEG_event)
         errordlg('Continue field contains invalid values!','Error','modal');
         error('>> Continue field contains invalid values')
     end
+
+    final_EEG_event(i).idx = i;
 end
 
 
@@ -233,7 +219,30 @@ EEG.event = temp_EEG_event;
 
 % copy back to EEG.urevent
 EEG.urevent = EEG.event;
-EEG.urevent = rmfield(EEG.urevent, 'urevent'); % EEG.urevent doens't have 'urevent' field
+EEG.urevent = rmfield(EEG.urevent, 'urevent'); %... EEG.urevent doens't have 'urevent' field
+
+% save it as csv
+all_sessions = struct2table(EEG.urevent);
+
+if isfile('all_sessions.csv')
+    msg = sprintf('File already exist, proceed to replacing the old one?');
+    choice = questdlg(msg, ...
+        'Confirm proceed', ...
+        'Yes','NO'); 
+    switch choice
+        case 'Yes'
+            proceed = true;
+        case 'NO'
+            proceed = false;
+    end
+else
+    proceed = true;
+end
+
+if proceed
+    writetable(all_sessions, 'all_sessions.csv');  
+end
+
 
 % remove unused channels
 EEG = pop_select( EEG, 'channel',config.used_channels);

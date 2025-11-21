@@ -12,7 +12,7 @@ function config = config_fn()
     config.dir.MATLAB = fullfile(config.dir.git, 'MATLAB');
     
     addpath(genpath(config.dir.root)) % Add with all subfolders
-    % savepath; % save for next session too
+    savepath; % save for next session too (not recommended for others)
     
     %%
     % ------------------------------- EEG -------------------------------------

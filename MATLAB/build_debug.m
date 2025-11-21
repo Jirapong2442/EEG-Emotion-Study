@@ -521,3 +521,194 @@ B = {'pear', 'grape', 'apple', 'pear', 'banana'};
 
 [tf, bad_chans_idx] = ismember(bad_chans, chans);
 bad_chans_idx
+
+
+%%
+
+
+temp_chanlocs = EEG.chanlocs;
+
+% find boundary latency values
+% event_types = {EEG.event.type}
+% real_idx = find(not(strcmp(event_types, 'boundary')))
+
+% init time channel
+[chans, pnts] = size(EEG.data); % Basically EEG.nbchan and EEG.pnts
+time_channel = zeros(1, pnts);
+idx_channel = zeros(1,pnts);
+
+for i = 1:length(EEG.event)
+    type = EEG.event(i).type;
+    if ~strcmp(type,'boundary')
+        latency = EEG.event(i).latency;
+        finalDuration = EEG.event(i).finalDuration; % measured in ms (with 1000 Hz)
+        
+        % NOTE: used floor() instead of round() to prevent going off-bounds
+        % (exceeding EEG.data time size)
+        start_pt = floor(latency);
+        stop_pt = start_pt + floor(finalDuration / 2); %... 1000 -> 500 Hz (divide by 2)
+        session_pts = (stop_pt - start_pt) + 1;
+
+        time_channel(start_pt:stop_pt) = 1:2:(1+2*(session_pts-1)); %... 1st_val + leap*(session_pts - 1)
+        idx_channel(start_pt:stop_pt) = EEG.event(i).idx;
+    end
+end
+
+% Put it to EEG.data
+EEG.data = [EEG.data; time_channel; idx_channel];
+
+
+% CORRECTING WORKSPACE VARS
+%--------------------------------------------------------------------
+% add 'TIMEMS' chan name
+EEG.nbchan = EEG.nbchan + 2;
+EEG.chanlocs = temp_chanlocs;
+EEG.chanlocs(end+1).labels = 'TIMEMS';
+EEG.chanlocs(end+1).labels = 'IDX';
+
+% necessary so that creating new set won't break chanlocs
+ALLEEG(end).chanlocs = EEG.chanlocs;
+ALLEEG(end).nbchan = EEG.nbchan;
+
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','custom time idx channels','gui','off'); 
+
+
+%%
+
+a = [1,2;3,4]
+
+a(:,1) = [3,4]
+
+
+%%
+session_durations = renamevars(session_durations, 'duration_ms_','durationInMs')
+rows = size(session_durations,1)
+idxs = linspace(1,rows,rows)
+idxs = idxs' %... row -> column
+session_durations = addvars(session_durations, idxs, 'NewVariableNames', 'Idx');
+
+
+
+%%
+
+% add 'finalDuration' and 'Idx' field
+for i = 1:length(final_EEG_event)
+    final_EEG_event(i).Idx = i;
+end
+
+%%
+
+file_path = "C:\Users\RaymondTeam\Desktop\EEE\EEG-Emotion-Study\MATLAB\support_functions\a.mat"
+isfile(file_path)
+
+% ASK TO PROCEED TO REMOVE BAD CHANNELS
+% --------------------------------------------------------
+msg = sprintf('File already exist, proceed to replacing the old one?');
+choice = questdlg(msg, ...
+    'Confirm proceed', ... % gui title
+    'Yes','No'); % the 2nd 'No' here is the default option, press enter to select this default
+switch choice
+    case 'Yes'
+        proceed = true;
+    case 'No'
+        proceed = 'exit';
+end
+
+%%
+
+dir = 'C:\Users\RaymondTeam\Desktop\EEE\EEG-Emotion-Study\MATLAB\support_functions';
+sav(dir,'a','mat')
+
+% save([dir, 'a.mat'],'a')
+% disp('hi')
+
+
+%%
+
+
+for i = 1:length(EEG.urevent)
+    continueVal = final_EEG_event(i).continue;
+    if continueVal == 1
+        final_EEG_event(i).finalDuration = final_EEG_event(i).calDuration - 1;
+    elseif continueVal == 0
+        final_EEG_event(i).finalDuration = final_EEG_event(i).refDuration;
+    else
+        errordlg('Continue field contains invalid values!','Error','modal');
+        error('>> Continue field contains invalid values')
+    end
+
+    final_EEG_event(i).Idx = i;
+end
+
+
+%%
+
+
+temp = EEG.urevent
+
+idx = 1
+for i = 1:length(temp)
+    type = temp(i).type
+    if ~strcmp(type,'boundary')
+        temp(i).idx = idx
+        idx = idx + 1;
+    end
+end
+open temp
+
+%%
+EEG.urevent = temp
+
+
+%%
+
+EEG = pop_loadset('filename','after_ICA.set','filepath','D:\\EEE\\ALL_DATA\\G2P_1\\');
+[ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0 );
+
+srate = EEG.srate;
+pnts = EEG.pnts;
+nbchan = EEG.nbchan;
+
+epochs = ceil(pnts/srate);
+
+epoched_data = zeros(nbchan, srate, epochs);
+
+temp_EEG_data = EEG.data;
+more_pnts = (epochs * srate) - pnts;
+pnts_array = zeros(nbchan, more_pnts);
+temp_EEG_data = [temp_EEG_data, pnts_array];
+
+epoched_data = reshape(temp_EEG_data, nbchan, srate, epochs);
+EEG = pop_importdata('setname','epoched data', 'data','epoched_data', 'dataformat','array');
+    % ^ Simply use pop_importdata() to put the epoched data in, everything
+    % else will be adjusted. It's better than forcibly subbing the
+    % epoched_data to EEG.data, use their own functions for it to adjust
+    % workspace vars manually.
+
+eeglab redraw
+
+
+
+
+
+
+
+
+%%
+% epoched_data = reshape(temp_EEG_data, 66, 500, 1973)
+
+EEG.data = epoched_data;
+
+% reorganize workspace vars
+EEG.epoch = struct()
+for i = 1:epochs
+    EEG.epoch(i).event = i;
+    EEG.epoch(i).eventtype = 'none';
+    EEG.epoch(i).eventlatency = 0;
+    EEG.epoch(i).eventurevent = -1;
+    EEG.epoch(i).eventduration = 0;
+    % disp(['EEG.epoch updated to ', num2str(i)])
+end
+
+eeglab redraw
+

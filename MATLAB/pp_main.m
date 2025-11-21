@@ -184,7 +184,7 @@ elseif ~proceed
 end
 
 %% re-reference (with CAR)
-
+    
 EEG = pop_reref( EEG, []);
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 2,'setname','re-referenced','gui','off'); 
 
@@ -194,7 +194,7 @@ EEG = pop_reref( EEG, []);
 current_dataset_idx = CURRENTSET;
 
 % load ref dataset
-ref_dataset_file = 'chan_ref_only.set';
+ref_dataset_file = 'chanlocs_ref_set.set';
 EEG = pop_loadset('filename',ref_dataset_file,'filepath',config.dir.MATLAB);
 [ALLEEG, EEG, CURRENTSET] = eeg_store( ALLEEG, EEG, 0);
 ref_dataset_idx = CURRENTSET;
@@ -203,7 +203,7 @@ chans = {EEG.chanlocs.labels};
 % go back to current original dataset
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, ref_dataset_idx,'retrieve',current_dataset_idx,'study',0);  %from -> to
 
-% find bad channels idx using ref dataset
+% find bad channels idx using ref dataset 
 chans = {EEG.chanlocs.labels};
 bad_chans = pp_vars.bad_channels;
 [tf, bad_chans_idx] = ismember(bad_chans, chans);
@@ -217,6 +217,8 @@ eeglab redraw
 
 %% ICA
 
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 4,'setname','before_ICA_rej','gui','off'); 
+
 EEG = pop_runica(EEG, 'icatype', 'runica', 'extended',1,'rndreset','yes','interrupt','on');
 [ALLEEG, EEG, CURRENTSET] = eeg_store(ALLEEG, EEG, CURRENTSET);
 
@@ -225,81 +227,82 @@ dis('act', 'Noisy signals can be rejected manually afterwards')
 
 eeglab redraw
 
+%%
+
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 4,'setname','after_ICA','gui','off'); 
 
 
+%% Add custom time and index channels
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-%% MODIFY Add custom time channel
-% CONTINUE
-
-temp_EEG_chanlocs = EEG.chanlocs; % temp save
+temp_chanlocs = EEG.chanlocs;
 
 % find boundary latency values
-eventTypes = {EEG.event.type};
-boundaryIdx = find(strcmp(eventTypes, 'boundary'));
-boundaryLatencies = [EEG.event(boundaryIdx).latency];
-
-% find session periods (boundary are always in-between 2 Ms like 1000.5ms / 1.0005s)
-boundary_floor = floor(boundaryLatencies);
-boundary_ceil = ceil(boundaryLatencies);
-session_periods = [boundary_ceil(1:end-1); boundary_floor(2:end)]';
+% event_types = {EEG.event.type}
+% real_idx = find(not(strcmp(event_types, 'boundary')))
 
 % init time channel
 [chans, pnts] = size(EEG.data); % Basically EEG.nbchan and EEG.pnts
 time_channel = zeros(1, pnts);
+idx_channel = zeros(1,pnts);
 
-% fill in time channel values (increment by 4)
-% 1 4 9 ... (Ms)
-for s_idx = 1:size(session_periods,1) % no. of rows
-    start = session_periods(s_idx,1);
-    stop = session_periods(s_idx,2);
-    session_pnts = (stop - start) + 1;
-    time_channel(:,start:stop) = 1:4:(1+ 4*(session_pnts-1));
+for i = 1:length(EEG.event)
+    type = EEG.event(i).type;
+    if ~strcmp(type,'boundary')
+        latency = EEG.event(i).latency;
+        finalDuration = EEG.event(i).finalDuration; % measured in ms (with 1000 Hz)
+        
+        % NOTE: used floor() instead of round() to prevent going off-bounds
+        % (exceeding EEG.data time size)
+        start_pt = floor(latency);
+        stop_pt = start_pt + floor(finalDuration / 2); %... 1000 -> 500 Hz (divide by 2)
+        session_pts = (stop_pt - start_pt) + 1;
+
+        time_channel(start_pt:stop_pt) = 1:2:(1+2*(session_pts-1)); %... 1st_val + leap*(session_pts - 1)
+        idx_channel(start_pt:stop_pt) = EEG.event(i).idx;
+    end
 end
 
 % Put it to EEG.data
-EEG.data = [EEG.data; time_channel];
+EEG.data = [EEG.data; time_channel; idx_channel];
 
 
 % CORRECTING WORKSPACE VARS
 %--------------------------------------------------------------------
 % add 'TIMEMS' chan name
-EEG.nbchan = EEG.nbchan + 1;
-EEG.chanlocs = temp_EEG_chanlocs;
+EEG.nbchan = EEG.nbchan + 2;
+EEG.chanlocs = temp_chanlocs;
 EEG.chanlocs(end+1).labels = 'TIMEMS';
-
-% % XX Does nothing
-% EEG.chanlocs(end).type = '';
-% EEG.chanlocs(end).ref = '';
+EEG.chanlocs(end+1).labels = 'IDX';
 
 % necessary so that creating new set won't break chanlocs
 ALLEEG(end).chanlocs = EEG.chanlocs;
 ALLEEG(end).nbchan = EEG.nbchan;
 
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','custom time idx channels','gui','off'); 
 
-[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','custom time chan','gui','off'); 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 %% MODIFY manually reject segments - reject segments
 
-% CONT
+% CONTINUE
 
 
 try
@@ -380,3 +383,4 @@ for i = 1:length(missing_markers)
     end
 end
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','refill rej markers (if any)','gui','off'); 
+

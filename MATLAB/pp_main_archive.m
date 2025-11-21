@@ -49,7 +49,7 @@ end
         [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, CURRENTSET,'retrieve',ori_dataset_idx,'study',0); 
 
 
-%%
+%% add custom time channel
 
 temp = ['bad_channels_' subject_ID];
 bad_channels = param.(temp);
@@ -95,3 +95,58 @@ fprintf("\n##### %s -> Channels to be interpolated\n", bad_channels);
 
 % REASON
 %   Simply just messy and variable classes are changed in the new script
+
+%%%% MODIFY Add custom time channel
+% CONTINUE
+
+temp_EEG_chanlocs = EEG.chanlocs; % temp save
+
+% find boundary latency values
+eventTypes = {EEG.event.type};
+boundaryIdx = find(strcmp(eventTypes, 'boundary'));
+boundaryLatencies = [EEG.event(boundaryIdx).latency];
+
+% find session periods (boundary are always in-between 2 Ms like 1000.5ms / 1.0005s)
+boundary_floor = floor(boundaryLatencies);
+boundary_ceil = ceil(boundaryLatencies);
+session_periods = [boundary_ceil(1:end-1); boundary_floor(2:end)]';
+
+% init time channel
+[chans, pnts] = size(EEG.data); % Basically EEG.nbchan and EEG.pnts
+time_channel = zeros(1, pnts);
+
+% fill in time channel values (increment by 4)
+% 1 4 9 ... (Ms)
+for s_idx = 1:size(session_periods,1) % no. of rows
+    start = session_periods(s_idx,1);
+    stop = session_periods(s_idx,2);
+    session_pnts = (stop - start) + 1;
+    time_channel(:,start:stop) = 1:4:(1+ 4*(session_pnts-1));
+end
+
+% Put it to EEG.data
+EEG.data = [EEG.data; time_channel];
+
+
+% CORRECTING WORKSPACE VARS
+%--------------------------------------------------------------------
+% add 'TIMEMS' chan name
+EEG.nbchan = EEG.nbchan + 1;
+EEG.chanlocs = temp_EEG_chanlocs;
+EEG.chanlocs(end+1).labels = 'TIMEMS';
+
+% % XX Does nothing
+% EEG.chanlocs(end).type = '';
+% EEG.chanlocs(end).ref = '';
+
+% necessary so that creating new set won't break chanlocs
+ALLEEG(end).chanlocs = EEG.chanlocs;
+ALLEEG(end).nbchan = EEG.nbchan;
+
+
+[ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 0,'setname','custom time chan','gui','off'); 
+
+% REASON
+%   now does not use 'boundary' types to segmentate sessions. Instead, use
+%   the event types themselves and also duration to look up the sessions.
+%   Now also added a idx channel
