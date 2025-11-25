@@ -1,22 +1,21 @@
-function config = config_fn()
+function CFG = cfg_fn()
     % ---------------------- FILES AND DIRECTORIES ----------------------------
     
     %% CHANGE
-    config.dir.root = 'C:\Users\RaymondTeam\Desktop\EEE';
+    CFG.dir.root = 'C:\Users\RaymondTeam\Desktop\EEE';
     
     % XX config.dir.all_data = fullfile(config.dir.root, 'ALL_DATA');
-    config.dir.all_data = 'D:\EEE\ALL_DATA';
+    CFG.dir.all_data = 'D:\EEE\ALL_DATA';
     
 
-    config.dir.git = fullfile(config.dir.root, 'EEG-Emotion-Study');
-    config.dir.MATLAB = fullfile(config.dir.git, 'MATLAB');
+    CFG.dir.git = fullfile(CFG.dir.root, 'EEG-Emotion-Study');
+    CFG.dir.MATLAB = fullfile(CFG.dir.git, 'MATLAB');
     
-    addpath(genpath(config.dir.root)) % Add with all subfolders
+    addpath(genpath(CFG.dir.root)) % Add with all subfolders
     savepath; % save for next session too (not recommended for others)
     
-    %%
     % ------------------------------- EEG -------------------------------------
-    config.used_channels = { ...
+    CFG.used_channels = { ...
     'FP1', 'FP2', ...
     'AF7', 'AF3', 'AFZ', 'AF4', 'AF8', ...
     'F7', 'F5', 'F3', 'F1', 'FZ', 'F2', 'F4', 'F6', 'F8', ...

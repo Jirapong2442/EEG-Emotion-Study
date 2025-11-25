@@ -13,9 +13,9 @@ end
     end
     
     if isempty(msg2)
-        long_msg = ['>> ', msg];
+        long_msg = ['WARNING >> ', msg];
     else
-        long_msg = ['>> ', msg, ' ', msg2];
+        long_msg = ['WARNING >> ', msg, ' ', msg2];
     end
 
     ME = MException('custom:Error', long_msg);

@@ -1,31 +1,49 @@
-clc; clear; close all
 
-config = config_fn();
-cd(config.dir.all_data);
+clc; clear; close all
+CONFIG;
+
+% =========================================================================
+subject_idx = 'P2G_1';
+% =========================================================================
+
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab;
 
-dis('act', 'Import Curry EEG data / raw.set','n')
+subject_dir = fullfile(cfg.dir.all_data, subject_idx);
+cd(subject_dir);
 
-%% Load video csv  >>  manually see which marker is real ones 
+if isfile('raw.set')
+    EEG = pop_loadset('filename','raw.set','filepath',subject_dir);
+    fprintf("INFO: raw.set from %s loaded\n", subject_idx);
+else
+    disp('ACTION >> Import curry EEG data')
+end
 
-% LOAD VIDEO DURATION CSV
-[file, dir] = uigetfile('*.csv'); % only show csv
+
+%% EDIT KEEP MARKERS
+
+remove_1st_col = true;
+sort_idx = true;
+rename_idx = true;
+
+% select and load pv file
+disp('ACTION >> select the personalized video duration csv')
+[file, dir] = uigetfile('*.csv'); %only show csv
 cd(dir);
 pv = readtable(file);
 
-% CSV -> TABLE OF ALL SESSION DURATIONS
-% remove unused 'var1' column
-pv = removevars(pv, "Var1");
-
-% Sort video index properly
-video_idx = str2double(erase(pv.video, 'v'));
-pv.idx = video_idx;
-pv = sortrows(pv, 'idx', 'ascend');
-pv = removevars(pv, "idx");
-
-% Rename index as 'p1' 'p2' ...
-for i = 1:size(pv,1)
-    pv.video{i} = ['p' num2str(i)];
+if remove_1st_col
+    pv = removevars(pv, "Var1");
+end
+if sort_idx
+    video_idx = str2double(erase(pv.video, 'v'));
+    pv.idx = video_idx;
+    pv = sortrows(pv, 'idx', 'ascend');
+    pv = removevars(pv, "idx");
+end
+if rename_idx
+    for i = 1:size(pv,1)
+        pv.video{i} = ['p' num2str(i)];
+    end
 end
 
 % Make the generalized video table
@@ -40,19 +58,18 @@ pb1 = table({'pb1'},180000,'VariableNames',{'video', 'duration_ms_'});
 pb2 = table({'pb2'},180000,'VariableNames',{'video', 'duration_ms_'});
 
 % classify experiment group g2p / p2g
-group = upper(file(1:3));
+group_class = upper(file(1:3));
 
 % Make the final table
-if strcmp(group,'G2P')
+if strcmp(group_class,'G2P')
     session_durations = [gb1;gv;gb2; pb1;pv;pb2];
-elseif strcmp(group,'P2G')
+elseif strcmp(group_class,'P2G')
     session_durations = [pb1;pv;pb2; gb1;gv;gb2];
 end
 session_durations = renamevars(session_durations, 'duration_ms_','durationInMs');
 
-
-% COPY EEG.EVENT and ADD COLUMN 'KEEP' 'calDuration' 'refDuration'
-% ---------------------------------------------------------------
+% ADD EEG EVENT
+% =========================================================================
 modify_this_EEG_event = EEG.event;
 
 % add 'keep' field
@@ -74,35 +91,32 @@ for i = 1:size(session_durations,1)
 end
 
 open modify_this_EEG_event
-dis('act', "Keep markers by setting 'keep' to 1 for corresponding rows then proceed", 'n')
-video_rows = size(session_durations,1);
-dis('act', ['No. of markers to be kept = ', string(video_rows)])
+disp("ACTION >> keep markers by setting 'keep' to 1")
+fprintf('no. of markers at the end = %i\n',size(session_durations,1))
 
 
-%% copy modify_this_EEG_event and check no. of rows is correct  >>  fill in everything  >>  check if sessions overlap
+%% 1ST CHECK MARKERS
 
-% COPY modify_this_EEG_event and TEST IF NO. OF ROWS IS CORRECT
-% -------------------------------------------------------------------------
 check_EEG_event = modify_this_EEG_event;
 
+% check no. markers
 video_rows = size(session_durations,1);
 keep_rows = sum([check_EEG_event.keep]==1);
-
 if keep_rows == video_rows
-    dis('info', 'Correct no. of markers, proceeding...', 'n')
+    disp('INFO: No. of markers are correct, proceeding...')
 else
     err('Incorrect no. of markers!')
 end
 
+
 % FILL IN EVERYTHING
 % -------------------------------------------------------------------------
-
 % reorder markers based on 'latency'
 values = [check_EEG_event.latency];
 [~, order] = sort(values, 'ascend');
 check_EEG_event = check_EEG_event(order);
 
-% rid markers that won't be kept
+% remove unkept markers
 check_EEG_event = check_EEG_event([check_EEG_event.keep] ~= 0); 
 check_EEG_event = rmfield(check_EEG_event, 'keep');
 
@@ -117,7 +131,7 @@ calDurations = [calDurations 0]; % no next one for last label
 calDurations = num2cell(calDurations);
 [check_EEG_event.calDuration] = calDurations{:};
 
-% add 'type' and refill 'refDurations' field
+% fill 'type' and refill 'refDurations' fields
 duration = session_durations.durationInMs;
 label = session_durations.video;
 for i = 1:size(session_durations,1)
@@ -125,8 +139,7 @@ for i = 1:size(session_durations,1)
     check_EEG_event(i).refDuration = duration(i);
 end
 
-
-% add 'continune field
+% add 'continue' field
 rows = length(check_EEG_event);
 col_continue = num2cell(ones(rows,1));
 [check_EEG_event.continue] = col_continue{:};
@@ -146,10 +159,7 @@ check_EEG_event(pb2_idx-1).continue = 0;
 check_EEG_event(pb2_idx).continue = 0;
 
 
-
-% MARK SESSION OVERLAP
-% -------------------------------------------------------------------------
-
+% mark session overlap
 for i = 1:length(check_EEG_event)
     check_EEG_event(i).overlaps_next = '                    ';
 end
@@ -163,104 +173,111 @@ for i = 1:length(check_EEG_event)-1
     end
 end
 
-dis('act','Updated the structure with inputs, check if ok','n');
-
 open check_EEG_event
+disp('ACTION >> check again if ok, overlapping sessions are marked')
 
+%% FINAL CHECK MARKERS
 
-%% generate a final_EEG_event
-
-final_EEG_event = check_EEG_event;
+final_check_EEG_event = check_EEG_event;
 
 % add 'finalDuration' and 'idx' field
-for i = 1:length(final_EEG_event)
-    continueVal = final_EEG_event(i).continue;
+for i = 1:length(final_check_EEG_event)
+    continueVal = final_check_EEG_event(i).continue;
     if continueVal == 1
-        final_EEG_event(i).finalDuration = final_EEG_event(i).calDuration - 1;
+        final_check_EEG_event(i).finalDuration = final_check_EEG_event(i).calDuration - 1;
     elseif continueVal == 0
-        final_EEG_event(i).finalDuration = final_EEG_event(i).refDuration;
+        final_check_EEG_event(i).finalDuration = final_check_EEG_event(i).refDuration;
     else
-        errordlg('Continue field contains invalid values!','Error','modal');
-        error('>> Continue field contains invalid values')
+        err("'Continue' field continas invalid values")
     end
-
-    final_EEG_event(i).idx = i;
+    final_check_EEG_event(i).idx = i;
 end
 
 
 % FINAL CHECK IF SESSION OVERLAPS
 % -------------------------------------------------------------------------
-for i = 1:length(final_EEG_event)
-    final_EEG_event(i).overlaps_next = '                    ';
+for i = 1:length(final_check_EEG_event)
+    final_check_EEG_event(i).overlaps_next = '                    ';
 end
 
-for i = 1:length(final_EEG_event)-1
-    this_lat = final_EEG_event(i).latency;
-    next_lat = final_EEG_event(i+1).latency;
-    this_dur = final_EEG_event(i).finalDuration;
+for i = 1:length(final_check_EEG_event)-1
+    this_lat = final_check_EEG_event(i).latency;
+    next_lat = final_check_EEG_event(i+1).latency;
+    this_dur = final_check_EEG_event(i).finalDuration;
     if this_lat + this_dur > next_lat
-        final_EEG_event(i).overlaps_next = '-------';
+        final_check_EEG_event(i).overlaps_next = '-------';
     end
 end
 
-dis('act', 'Do a final check, proceed if ok','n');
+open final_check_EEG_event
+disp('ACTION >> final check')
 
-open final_EEG_event
+%% SAVE CORRECTED_RAW.SET
 
-%% tidy up data  >>  remove unused channels >>  trim start-end  >> manually save data
-
-temp_EEG_event = final_EEG_event;
-
-% remove 'calDuration', 'refDuration', 'continue', 'overlaps_next' fields
-temp_EEG_event = rmfield(temp_EEG_event, {'calDuration', 'refDuration', 'continue', 'overlaps_next'});
-
-% copy back to EEG.event
+% save EEG.event and EEG.urevent
+EEG.event = final_check_EEG_event;
+%remove 'calDuration', 'refDuration', 'continue', 'overlaps_next' fields
+EEG.event = rmfield(EEG.event, {'calDuration', 'refDuration', 'continue', 'overlaps_next'}); 
 EEG.event = temp_EEG_event;
-
-% copy back to EEG.urevent
 EEG.urevent = EEG.event;
 EEG.urevent = rmfield(EEG.urevent, 'urevent'); %... EEG.urevent doens't have 'urevent' field
 
-% save it as csv
+% save video durations as csv "all_sessions.csv"
 all_sessions = struct2table(EEG.urevent);
-
 if isfile('all_sessions.csv')
-    msg = sprintf('File already exist, proceed to replacing the old one?');
+    msg = sprintf('all_sessions.csv already exist, replace?');
     choice = questdlg(msg, ...
         'Confirm proceed', ...
-        'Yes','NO'); 
+        'Yes replace','No','No'); 
     switch choice
-        case 'Yes'
+        case 'Yes replace'
             proceed = true;
-        case 'NO'
+        case 'No'
             proceed = false;
     end
 else
     proceed = true;
 end
-
 if proceed
-    writetable(all_sessions, 'all_sessions.csv');  
+    writetable(all_sessions, 'all_sessions.csv'); 
+    disp("INFO: all_sessions.csv saved")
+else
+    disp('INFO: not saving all_sessions.csv...')
 end
 
 
 % remove unused channels
-EEG = pop_select( EEG, 'channel',config.used_channels);
+EEG = pop_select( EEG, 'channel',cfg.used_channels);
 
-% trim start-end CONTINUE
-start_idx = 1;
-end_idx = length(EEG.event);
-start_pt = EEG.event(start_idx).latency;
-end_pt = EEG.event(end_idx).latency + EEG.event(end_idx).finalDuration;
-keep_data = [start_pt, end_pt];
+% trim start-end
+start_event_idx = 1;
+end_event_idx = length(EEG.event);
+start_recording = EEG.event(start_event_idx).latency;
+end_recording = EEG.event(end_event_idx).latency + EEG.event(end_event_idx).finalDuration;
+keep_data = [start_recording, end_recording];
 EEG = pop_select( EEG, 'point',keep_data );
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 5,'gui','off');
 
-% Manually save data
+% save set
 [ALLEEG EEG CURRENTSET] = pop_newset(ALLEEG, EEG, 2, 'setname', 'corrected raw', 'gui','off');
-eeglab redraw;
-
-dis('act','Save dataset as: corrected_raw.set','n')
-
-
-
+if isfile('corrected_raw.set')
+    msg = sprintf('corrected_raw.set already exist, replace?');
+    choice = questdlg(msg, ...
+        'Confirm proceed', ...
+        'Yes replace','No','No'); 
+    switch choice
+        case 'Yes replace'
+            proceed = true;
+        case 'No'
+            proceed = false;
+    end
+else
+    proceed = true;
+end
+if proceed
+    EEG = pop_saveset( EEG, 'filename','corrected_raw.set','filepath',subject_dir);
+    [ALLEEG, EEG, CURRENTSET] = eeg_store(ALLEEG, EEG, CURRENTSET);
+    disp("INFO: corrected_raw saved")
+else
+    disp("INFO: not saving corrected_raw.set...")
+end

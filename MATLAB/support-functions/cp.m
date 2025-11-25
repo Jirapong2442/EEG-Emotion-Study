@@ -1,14 +1,9 @@
-function dis(icon, msg, new_line)
+function (icon, msg, new_line)
 arguments
     icon char = ''
     msg char = ''
     new_line char = ''
 end
-
-    % try
-    %     msg = char(msg);
-    % catch
-    % end
     
     if strcmp(icon, 'info')
         i_symbol = '[i] ';
